@@ -1,5 +1,3 @@
-#![feature(int_roundings)]
-
 use std::{
     ffi::OsStr,
     fs::{self},
@@ -19,8 +17,8 @@ fn main() -> Result<()> {
     let c_z: i32 = 0;
 
     // Calculate region coordinates from chunk coordinates
-    let region_x = c_x.div_floor(32);
-    let region_z = c_z.div_floor(32);
+    let region_x = c_x / 32;
+    let region_z = c_z / 32;
     let expected_region = format!("r.{}.{}.mca", region_x, region_z);
 
     println!(
@@ -61,13 +59,19 @@ fn main() -> Result<()> {
         println!("Chunk successfully parsed!");
         println!("DataVersion: {}", chunk.data_version);
 
-        // Print section info if available
-        println!("Number of sections: {}", chunk.sections.len());
-        for section in chunk.sections {
-            println!("{:?}", section);
-        }
+        let b_x = 9;
+        let b_y = 44;
+        let b_z = 11;
 
-        // Only process first region file for now
+        let section = chunk
+            .section_for(b_y)
+            .expect(format!("Failed to find section for Y={}", b_y).as_str());
+
+        let palette = section
+            .block_at(b_x, b_y, b_z)
+            .expect(format!("Failed to find block for {}, {}, {}", b_x, b_y, b_z).as_str());
+
+        println!("Block at {}, {}, {}: {:?}", b_x, b_y, b_z, palette);
         break;
     }
 

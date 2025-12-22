@@ -21,5 +21,15 @@ pub struct Chunk {
     pub status: String,
 
     #[serde(rename = "sections")]
-    pub sections: Vec<Section>,  // Owned, not borrowed
+    pub sections: Vec<Section>,
+}
+
+impl Chunk {
+    pub fn section_for(&self, y: usize) -> Option<&Section> {
+        let section_index = (y / 16) as i8;
+        return self
+            .sections
+            .iter()
+            .find(|section| section.y == section_index);
+    }
 }
