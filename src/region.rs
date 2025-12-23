@@ -6,7 +6,7 @@ use std::{
 
 use flate2::bufread::ZlibDecoder;
 
-use crate::chunk::{self, Chunk};
+use crate::chunk::Chunk;
 
 pub fn read_chunk(path: PathBuf, chunk_x: i32, chunk_z: i32) -> Option<Chunk> {
     println!("Reading region file: {:?}", path);

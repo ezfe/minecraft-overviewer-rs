@@ -4,14 +4,18 @@ use std::{
     io::Result,
 };
 
+use crate::chunk::Chunk;
 use crate::region::read_chunk;
+use crate::renderer::IsometricRenderer;
 
 mod chunk;
 mod region;
+mod renderer;
 mod section;
 
 fn main() -> Result<()> {
     const SOURCE: &str = "sample_map/region";
+    const ASSETS: &str = "assets";
 
     let c_x: i32 = 0;
     let c_z: i32 = 0;
@@ -59,21 +63,62 @@ fn main() -> Result<()> {
         println!("Chunk successfully parsed!");
         println!("DataVersion: {}", chunk.data_version);
 
-        let b_x = 9;
-        let b_y = 44;
-        let b_z = 11;
+        // Create the isometric renderer
+        let mut renderer = IsometricRenderer::new(ASSETS);
 
-        let section = chunk
-            .section_for(b_y)
-            .expect(format!("Failed to find section for Y={}", b_y).as_str());
+        // Find the Y range of the chunk
+        let min_section_y = chunk.sections.iter().map(|s| s.y).min().unwrap_or(0);
+        let max_section_y = chunk.sections.iter().map(|s| s.y).max().unwrap_or(0);
 
-        let palette = section
-            .block_at(b_x, b_y, b_z)
-            .expect(format!("Failed to find block for {}, {}, {}", b_x, b_y, b_z).as_str());
+        let min_y = min_section_y as i32 * 16;
+        let max_y = (max_section_y as i32 + 1) * 16;
 
-        println!("Block at {}, {}, {}: {:?}", b_x, b_y, b_z, palette);
+        println!(
+            "Chunk Y range: {} to {} (sections {} to {})",
+            min_y, max_y, min_section_y, max_section_y
+        );
+
+        // Print section info
+        println!("Chunk has {} sections:", chunk.sections.len());
+        for section in &chunk.sections {
+            let block_count = section
+                .block_states
+                .as_ref()
+                .map(|bs| bs.palette.len())
+                .unwrap_or(0);
+            println!("  Section Y={}: {} palette entries", section.y, block_count);
+        }
+
+        println!("Rendering full chunk...");
+
+        // Render the entire chunk
+        let img = renderer.render_chunk(|x, y, z| get_block_at(&chunk, x, y, z), min_y, max_y);
+
+        // Save the rendered image
+        let output_path = "output_chunk.png";
+        img.save(output_path).expect("Failed to save image");
+        println!(
+            "Rendered chunk saved to {} ({}x{} pixels)",
+            output_path,
+            img.width(),
+            img.height()
+        );
+
         break;
     }
 
     Ok(())
+}
+
+/// Get the block at world coordinates (x, y, z) within a chunk
+fn get_block_at(chunk: &Chunk, x: usize, y: i32, z: usize) -> Option<String> {
+    // Find the section for this Y level
+    let section_y = (y.div_euclid(16)) as i8;
+
+    let section = chunk.sections.iter().find(|s| s.y == section_y)?;
+
+    // Get the block within the section
+    let local_y = y.rem_euclid(16) as usize;
+
+    section.block_at(x, local_y, z).map(|p| p.name.clone())
 }
