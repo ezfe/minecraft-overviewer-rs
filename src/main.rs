@@ -14,6 +14,7 @@ mod chunk;
 mod region;
 mod renderer;
 mod section;
+mod utils;
 
 /// A collection of loaded chunks indexed by (chunk_x, chunk_z)
 struct ChunkStore {

@@ -4,8 +4,7 @@ use image::{
 };
 use std::collections::HashMap;
 
-const BLOCK_RENDER_SIZE: u32 = 24;
-const BLOCK_SIDE_HEIGHT: u32 = 18;
+use crate::utils::{darken_image, tint_image};
 
 /// Isometric renderer for Minecraft chunks/sections
 pub struct IsometricRenderer {
@@ -122,15 +121,10 @@ impl IsometricRenderer {
     /// Output: 12x18 pixels
     pub fn transform_side_left(texture: &RgbaImage) -> RgbaImage {
         // Resize to 12x12
-        let resized = imageops::resize(
-            texture,
-            BLOCK_RENDER_SIZE / 2,
-            BLOCK_RENDER_SIZE / 2,
-            imageops::FilterType::Triangle,
-        );
+        let resized = imageops::resize(texture, 24 / 2, 24 / 2, imageops::FilterType::Triangle);
 
         // Create output image (12x18 for side face after shear)
-        let mut output = RgbaImage::new(BLOCK_RENDER_SIZE / 2, BLOCK_SIDE_HEIGHT);
+        let mut output = RgbaImage::new(12, 18);
 
         // Shear transformation: y_new = y + 0.5 * x
         // Inverse: y_src = y_out - 0.5 * x_out
@@ -161,22 +155,10 @@ impl IsometricRenderer {
         imageops::flip_horizontal(&left)
     }
 
-    /// Darken an image by a factor (0.0 = black, 1.0 = original)
-    pub fn darken(img: &RgbaImage, factor: f32) -> RgbaImage {
-        let mut result = img.clone();
-        for pixel in result.pixels_mut() {
-            pixel[0] = (pixel[0] as f32 * factor) as u8;
-            pixel[1] = (pixel[1] as f32 * factor) as u8;
-            pixel[2] = (pixel[2] as f32 * factor) as u8;
-            // Keep alpha unchanged
-        }
-        result
-    }
-
     /// Build a full isometric block from top and side textures
     /// Returns a 24x24 image
-    pub fn build_block(&self, top: &RgbaImage, side: &RgbaImage) -> RgbaImage {
-        let mut img = RgbaImage::new(BLOCK_RENDER_SIZE, BLOCK_RENDER_SIZE);
+    pub fn render_block_3d(&self, top: &RgbaImage, side: &RgbaImage) -> RgbaImage {
+        let mut img = RgbaImage::new(24, 24);
 
         // Transform the top
         let top_transformed = Self::transform_top(top);
@@ -186,8 +168,8 @@ impl IsometricRenderer {
         let side_right = Self::transform_side_right(side);
 
         // Darken the sides (left 0.9, right 0.8)
-        let side_left = Self::darken(&side_left, 0.9);
-        let side_right = Self::darken(&side_right, 0.8);
+        let side_left = darken_image(&side_left, 0.9);
+        let side_right = darken_image(&side_right, 0.8);
 
         // Composite: first the top at (0, 0), then left side at (0, 6), then right at (12, 6)
         overlay(&mut img, &top_transformed, 0, 0);
@@ -283,36 +265,36 @@ impl IsometricRenderer {
             if let (Some(top), Some(side)) =
                 (self.load_texture(&top_name), self.load_texture(&side_name))
             {
-                return self.build_block(&top, &side);
+                return self.render_block_3d(&top, &side);
             }
             if let (Some(top), Some(side)) = (
                 self.load_texture(&top_name2),
                 self.load_texture(&side_name2),
             ) {
-                return self.build_block(&top, &side);
+                return self.render_block_3d(&top, &side);
             }
             // Just the log texture
             if let Some(tex) = self.load_texture(&side_name) {
-                return self.build_block(&tex, &tex);
+                return self.render_block_3d(&tex, &tex);
             }
         }
 
         // Pattern 2: Water and lava (animated textures - use first frame)
         if name == "water" {
             if let Some(tex) = self.load_animated_texture("water_still") {
-                let tinted = Self::tint_image(&tex, [63, 118, 228]); // Water blue tint
-                return self.build_block(&tinted, &tinted);
+                let tinted = tint_image(&tex, [63. / 255., 118. / 255., 228. / 255.]); // Water blue tint
+                return self.render_block_3d(&tinted, &tinted);
             }
         }
         if name == "lava" {
             if let Some(tex) = self.load_animated_texture("lava_still") {
-                return self.build_block(&tex, &tex);
+                return self.render_block_3d(&tex, &tex);
             }
         }
 
         // Pattern 3: block_name (e.g., "stone.png")
         if let Some(tex) = self.load_texture(name) {
-            return self.build_block(&tex, &tex);
+            return self.render_block_3d(&tex, &tex);
         }
 
         // Pattern 3: block_name_top and block_name_side (e.g., "grass_block_top.png", "grass_block_side.png")
@@ -323,53 +305,41 @@ impl IsometricRenderer {
         {
             // Tint grass blocks green
             if name == "grass_block" {
-                let tinted_top = Self::tint_image(&top, [124, 189, 107]);
-                return self.build_block(&tinted_top, &side);
+                let tinted_top = tint_image(&top, [124. / 255., 189. / 255., 107. / 255.]);
+                return self.render_block_3d(&tinted_top, &side);
             }
-            return self.build_block(&top, &side);
+            return self.render_block_3d(&top, &side);
         }
 
         // Pattern 4: Just _top exists, use it for all faces
         if let Some(top) = self.load_texture(&top_name) {
-            return self.build_block(&top, &top);
+            return self.render_block_3d(&top, &top);
         }
 
         // Pattern 5: _planks suffix (e.g., oak -> oak_planks)
         let planks_name = format!("{}_planks", name);
         if let Some(tex) = self.load_texture(&planks_name) {
-            return self.build_block(&tex, &tex);
+            return self.render_block_3d(&tex, &tex);
         }
 
         // Pattern 6: _block suffix (e.g., diamond -> diamond_block)
         let block_name = format!("{}_block", name);
         if let Some(tex) = self.load_texture(&block_name) {
-            return self.build_block(&tex, &tex);
+            return self.render_block_3d(&tex, &tex);
         }
 
         // Pattern 7: Leaves
         if name.ends_with("_leaves") {
             if let Some(tex) = self.load_texture(name) {
                 // Tint leaves green
-                let tinted = Self::tint_image(&tex, [100, 180, 80]);
-                return self.build_block(&tinted, &tinted);
+                let tinted = tint_image(&tex, [100. / 255., 180. / 255., 80. / 255.]);
+                return self.render_block_3d(&tinted, &tinted);
             }
         }
 
         // Fallback: create a pink "missing texture" block
         eprintln!("Missing texture for block: {}", name);
         self.create_missing_block()
-    }
-
-    /// Tint an image with a color (for grass, leaves, etc.)
-    fn tint_image(img: &RgbaImage, tint: [u8; 3]) -> RgbaImage {
-        let mut result = img.clone();
-        for pixel in result.pixels_mut() {
-            // Multiply the RGB channels by the tint color
-            pixel[0] = ((pixel[0] as u32 * tint[0] as u32) / 255) as u8;
-            pixel[1] = ((pixel[1] as u32 * tint[1] as u32) / 255) as u8;
-            pixel[2] = ((pixel[2] as u32 * tint[2] as u32) / 255) as u8;
-        }
-        result
     }
 
     /// Create a "missing texture" block (pink/black checkerboard)
@@ -385,121 +355,7 @@ impl IsometricRenderer {
                 tex.put_pixel(x, y, color);
             }
         }
-        self.build_block(&tex, &tex)
-    }
-
-    /// Render a full 16x16x16 section
-    /// Returns the rendered image with proper isometric layering
-    pub fn render_section<F>(&mut self, get_block: F) -> RgbaImage
-    where
-        F: Fn(usize, usize, usize) -> Option<String>,
-    {
-        // Calculate output image size
-        // In isometric view:
-        // - X increases: moves right and down
-        // - Z increases: moves left and down
-        // - Y increases: moves up
-        //
-        // For a 16x16x16 section:
-        // Width: 16 blocks * 24 pixels wide = 384, but blocks overlap, so roughly 16*12 + 16*12 = 384
-        // Height: 16 blocks high * 12 pixels each + base = needs calculation
-        //
-        // More precisely:
-        // - Each block is 24x24 but the top is 24x12
-        // - Horizontal: spans from col = -15 to col = +15 (for x=0..15, z=0..15)
-        //   where col = x - z, so total width ~ 32 * 12 = 384
-        // - Vertical: spans from y=0 to y=15, plus the block heights
-
-        let width = 16 * 12 + 16 * 12; // = 384
-        let height = 16 * 12 + 16 * 6 + 24; // 16 blocks of Y height + base + extra
-
-        let mut img = RgbaImage::new(width, height);
-
-        // Render from back to front, bottom to top (painter's algorithm)
-        // Back to front: high Z to low Z for back, low X to high X for front
-        // Bottom to top: low Y to high Y
-
-        for y in 0..16 {
-            // Render in diagonal slices from back-left to front-right
-            for sum in 0..32 {
-                // sum = x + z, from 0 to 30
-                for x in 0..=sum {
-                    let z = sum - x;
-                    if x < 16 && z < 16 {
-                        if let Some(block_name) = get_block(x, y, z) {
-                            if block_name != "minecraft:air"
-                                && block_name != "minecraft:cave_air"
-                                && block_name != "minecraft:void_air"
-                            {
-                                let sprite = self.get_block_sprite(&block_name);
-
-                                // Calculate screen position
-                                // Isometric projection: col = x - z, row = x + z
-                                // Then adjust for Y height
-                                let screen_x = (x - z) as u32 * 12 + (width / 2) - 12;
-                                let screen_y =
-                                    (x + z) as u32 * 6 - (y as u32) * 12 + (height - 16 * 6 - 24);
-
-                                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        img
-    }
-
-    /// Render an entire chunk (all Y levels from min_y to max_y)
-    /// Returns the rendered image with proper isometric layering
-    pub fn render_chunk<F>(&mut self, get_block: F, min_y: isize, max_y: isize) -> RgbaImage
-    where
-        F: Fn(isize, isize, isize) -> Option<String>,
-    {
-        let total_height = max_y - min_y;
-
-        // Calculate output image size
-        // Width: same as section (16 blocks in X and Z)
-        // Height: needs to accommodate all Y levels
-        let width = 16 * 12 + 16 * 12; // = 384
-
-        // Height calculation:
-        // - Base plane at lowest Y: 16*6 pixels for the X+Z diagonal
-        // - Each Y level adds 12 pixels of height
-        // - Plus block height (24 pixels for the topmost blocks)
-        let height = ((total_height * 12) + (16 * 6) + 24) as u32;
-
-        let mut img = RgbaImage::new(width, height);
-
-        // Render from back to front, bottom to top (painter's algorithm)
-        for y in min_y..max_y {
-            // Render in diagonal slices from back-left to front-right
-            for sum in 0..32isize {
-                for x in 0..=sum {
-                    let z = sum - x;
-                    if x < 16 && z < 16 {
-                        if let Some(block_name) = get_block(x, y, z) {
-                            if block_name != "minecraft:air"
-                                && block_name != "minecraft:cave_air"
-                                && block_name != "minecraft:void_air"
-                            {
-                                let sprite = self.get_block_sprite(&block_name);
-
-                                // Calculate screen position
-                                let screen_x = (x - z) as u32 * 12 + (width / 2) - 12;
-                                let screen_y = (x + z) as u32 * 6 - (y - min_y) as u32 * 12
-                                    + (height - 16 * 6 - 24);
-
-                                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        img
+        self.render_block_3d(&tex, &tex)
     }
 
     /// Render multiple chunks in a grid
