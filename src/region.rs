@@ -8,26 +8,23 @@ use flate2::bufread::ZlibDecoder;
 
 use crate::chunk::Chunk;
 
-pub fn read_chunk(path: PathBuf, chunk_x: i32, chunk_z: i32) -> Option<Chunk> {
-    println!("Reading region file: {:?}", path);
-
-    let file = File::open(path).expect("Failed to open region file");
+pub fn read_chunk(path: PathBuf, chunk_x: isize, chunk_z: isize) -> Option<Chunk> {
+    let file = File::open(path).ok()?;
     let mut reader = BufReader::new(file);
 
     // Read location table (first 4096 bytes, uncompressed)
     let mut location_table = [0u8; 4096];
-    reader
-        .read_exact(&mut location_table)
-        .expect("Failed to read location table");
+    reader.read_exact(&mut location_table).ok()?;
 
     // Read timestamp table (next 4096 bytes, uncompressed)
     let mut timestamp_table = [0u8; 4096];
-    reader
-        .read_exact(&mut timestamp_table)
-        .expect("Failed to read timestamp table");
+    reader.read_exact(&mut timestamp_table).ok()?;
 
-    let chunk_index = ((chunk_x % 32) + (chunk_z % 32) * 32) * 4; // *4 because each entry is 4 bytes
-    let chunk_index: usize = chunk_index.try_into().unwrap(); // usize for rust indexing
+    // Handle negative chunk coordinates properly
+    let local_x = chunk_x.rem_euclid(32);
+    let local_z = chunk_z.rem_euclid(32);
+    let chunk_index = (local_x + local_z * 32) * 4;
+    let chunk_index = chunk_index as usize;
 
     // Parse location as big-endian u32
     let location = u32::from_be_bytes([
@@ -38,58 +35,39 @@ pub fn read_chunk(path: PathBuf, chunk_x: i32, chunk_z: i32) -> Option<Chunk> {
     ]);
 
     let offset = ((location >> 8) * 4096) as u64;
-    let sectors = (location & 0xFF) as u8;
+    let _sectors = (location & 0xFF) as u8;
 
     if offset == 0 {
-        println!("Chunk {},{} doesn't exist in this region", chunk_x, chunk_z);
-        return None;
+        return None; // Chunk doesn't exist
     }
 
-    println!(
-        "Chunk {},{} found at offset {} ({} sectors)",
-        chunk_x, chunk_z, offset, sectors
-    );
-
     // Seek to chunk data
-    reader
-        .seek(SeekFrom::Start(offset))
-        .expect("Failed to seek at chunk index");
+    reader.seek(SeekFrom::Start(offset)).ok()?;
 
     // Read chunk header (5 bytes)
     let mut header = [0u8; 5];
-    reader
-        .read_exact(&mut header)
-        .expect("Failed to read chunk header");
+    reader.read_exact(&mut header).ok()?;
 
     let data_length = u32::from_be_bytes([header[0], header[1], header[2], header[3]]);
     let compression_type = header[4];
 
-    println!(
-        "Chunk data length: {}, compression type: {}",
-        data_length, compression_type
-    );
-
     if compression_type != 2 {
-        panic!(
+        eprintln!(
             "Warning: unexpected compression type {} (expected 2 for zlib)",
             compression_type
         );
+        return None;
     }
 
     // Read compressed chunk data (data_length - 1 because we already read compression byte)
     let mut compressed_data = vec![0u8; (data_length - 1) as usize];
-    reader
-        .read_exact(&mut compressed_data)
-        .expect("Failed to read compressed chunk data");
+    reader.read_exact(&mut compressed_data).ok()?;
 
     // Decompress with zlib
     let mut decoder = ZlibDecoder::new(&compressed_data[..]);
     let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .expect("Failed to decompress chunk data");
+    decoder.read_to_end(&mut decompressed).ok()?;
 
     // Parse as NBT (owned deserialization)
-    let chunk: Chunk = fastnbt::from_bytes(&decompressed).expect("Failed to parse chunk NBT data");
-    return Some(chunk);
+    fastnbt::from_bytes(&decompressed).ok()
 }

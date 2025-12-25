@@ -1,5 +1,11 @@
-use image::{imageops, Rgba, RgbaImage};
+use image::{
+    Rgba, RgbaImage,
+    imageops::{self, overlay},
+};
 use std::collections::HashMap;
+
+const BLOCK_RENDER_SIZE: u32 = 24;
+const BLOCK_SIDE_HEIGHT: u32 = 18;
 
 /// Isometric renderer for Minecraft chunks/sections
 pub struct IsometricRenderer {
@@ -33,6 +39,30 @@ impl IsometricRenderer {
             self.texture_cache
                 .insert(texture_name.to_string(), rgba.clone());
             Some(rgba)
+        } else {
+            None
+        }
+    }
+
+    /// Load an animated texture (extracts just the first 16x16 frame)
+    pub fn load_animated_texture(&mut self, texture_name: &str) -> Option<RgbaImage> {
+        let cache_key = format!("{}_frame0", texture_name);
+        if let Some(cached) = self.texture_cache.get(&cache_key) {
+            return Some(cached.clone());
+        }
+
+        let path = format!(
+            "{}/minecraft/textures/block/{}.png",
+            self.assets_path, texture_name
+        );
+
+        if let Ok(img) = image::open(&path) {
+            let rgba = img.to_rgba8();
+            // Animated textures have multiple frames stacked vertically
+            // Extract just the first 16x16 frame
+            let frame = imageops::crop_imm(&rgba, 0, 0, 16, 16).to_image();
+            self.texture_cache.insert(cache_key, frame.clone());
+            Some(frame)
         } else {
             None
         }
@@ -92,10 +122,15 @@ impl IsometricRenderer {
     /// Output: 12x18 pixels
     pub fn transform_side_left(texture: &RgbaImage) -> RgbaImage {
         // Resize to 12x12
-        let resized = imageops::resize(texture, 12, 12, imageops::FilterType::Triangle);
+        let resized = imageops::resize(
+            texture,
+            BLOCK_RENDER_SIZE / 2,
+            BLOCK_RENDER_SIZE / 2,
+            imageops::FilterType::Triangle,
+        );
 
         // Create output image (12x18 for side face after shear)
-        let mut output = RgbaImage::new(12, 18);
+        let mut output = RgbaImage::new(BLOCK_RENDER_SIZE / 2, BLOCK_SIDE_HEIGHT);
 
         // Shear transformation: y_new = y + 0.5 * x
         // Inverse: y_src = y_out - 0.5 * x_out
@@ -138,49 +173,10 @@ impl IsometricRenderer {
         result
     }
 
-    /// Alpha-composite src onto dst at the given position
-    pub fn alpha_over(dst: &mut RgbaImage, src: &RgbaImage, x: i32, y: i32) {
-        for (src_x, src_y, src_pixel) in src.enumerate_pixels() {
-            let dst_x = x + src_x as i32;
-            let dst_y = y + src_y as i32;
-
-            if dst_x >= 0
-                && dst_x < dst.width() as i32
-                && dst_y >= 0
-                && dst_y < dst.height() as i32
-            {
-                let dst_x = dst_x as u32;
-                let dst_y = dst_y as u32;
-                let dst_pixel = dst.get_pixel(dst_x, dst_y);
-
-                // Alpha blending
-                let src_alpha = src_pixel[3] as f32 / 255.0;
-                let dst_alpha = dst_pixel[3] as f32 / 255.0;
-                let out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha);
-
-                if out_alpha > 0.0 {
-                    let blend = |s: u8, d: u8| -> u8 {
-                        let s = s as f32;
-                        let d = d as f32;
-                        ((s * src_alpha + d * dst_alpha * (1.0 - src_alpha)) / out_alpha) as u8
-                    };
-
-                    let new_pixel = Rgba([
-                        blend(src_pixel[0], dst_pixel[0]),
-                        blend(src_pixel[1], dst_pixel[1]),
-                        blend(src_pixel[2], dst_pixel[2]),
-                        (out_alpha * 255.0) as u8,
-                    ]);
-                    dst.put_pixel(dst_x, dst_y, new_pixel);
-                }
-            }
-        }
-    }
-
     /// Build a full isometric block from top and side textures
     /// Returns a 24x24 image
     pub fn build_block(&self, top: &RgbaImage, side: &RgbaImage) -> RgbaImage {
-        let mut img = RgbaImage::new(24, 24);
+        let mut img = RgbaImage::new(BLOCK_RENDER_SIZE, BLOCK_RENDER_SIZE);
 
         // Transform the top
         let top_transformed = Self::transform_top(top);
@@ -194,9 +190,9 @@ impl IsometricRenderer {
         let side_right = Self::darken(&side_right, 0.8);
 
         // Composite: first the top at (0, 0), then left side at (0, 6), then right at (12, 6)
-        Self::alpha_over(&mut img, &top_transformed, 0, 0);
-        Self::alpha_over(&mut img, &side_left, 0, 6);
-        Self::alpha_over(&mut img, &side_right, 12, 6);
+        overlay(&mut img, &top_transformed, 0, 0);
+        overlay(&mut img, &side_left, 0, 6);
+        overlay(&mut img, &side_right, 12, 6);
 
         img
     }
@@ -210,9 +206,7 @@ impl IsometricRenderer {
         }
 
         // Strip minecraft: prefix if present
-        let name = block_name
-            .strip_prefix("minecraft:")
-            .unwrap_or(block_name);
+        let name = block_name.strip_prefix("minecraft:").unwrap_or(block_name);
 
         // Try to load textures based on common naming patterns
         let sprite = self.create_block_sprite(name);
@@ -262,6 +256,10 @@ impl IsometricRenderer {
             || name.contains("sign")
             || name.contains("head")
             || name.contains("skull")
+            || name.contains("dripstone")
+            || name.contains("pointed")
+            || name.contains("amethyst_cluster")
+            || name.contains("amethyst_bud")
         {
             return RgbaImage::new(24, 24); // Transparent for now - complex geometry
         }
@@ -287,9 +285,10 @@ impl IsometricRenderer {
             {
                 return self.build_block(&top, &side);
             }
-            if let (Some(top), Some(side)) =
-                (self.load_texture(&top_name2), self.load_texture(&side_name2))
-            {
+            if let (Some(top), Some(side)) = (
+                self.load_texture(&top_name2),
+                self.load_texture(&side_name2),
+            ) {
                 return self.build_block(&top, &side);
             }
             // Just the log texture
@@ -298,7 +297,20 @@ impl IsometricRenderer {
             }
         }
 
-        // Pattern 2: block_name (e.g., "stone.png")
+        // Pattern 2: Water and lava (animated textures - use first frame)
+        if name == "water" {
+            if let Some(tex) = self.load_animated_texture("water_still") {
+                let tinted = Self::tint_image(&tex, [63, 118, 228]); // Water blue tint
+                return self.build_block(&tinted, &tinted);
+            }
+        }
+        if name == "lava" {
+            if let Some(tex) = self.load_animated_texture("lava_still") {
+                return self.build_block(&tex, &tex);
+            }
+        }
+
+        // Pattern 3: block_name (e.g., "stone.png")
         if let Some(tex) = self.load_texture(name) {
             return self.build_block(&tex, &tex);
         }
@@ -424,11 +436,11 @@ impl IsometricRenderer {
                                 // Calculate screen position
                                 // Isometric projection: col = x - z, row = x + z
                                 // Then adjust for Y height
-                                let screen_x = (x as i32 - z as i32) * 12 + (width as i32 / 2) - 12;
-                                let screen_y = (x as i32 + z as i32) * 6 - (y as i32) * 12
-                                    + (height as i32 - 16 * 6 - 24);
+                                let screen_x = (x - z) as u32 * 12 + (width / 2) - 12;
+                                let screen_y =
+                                    (x + z) as u32 * 6 - (y as u32) * 12 + (height - 16 * 6 - 24);
 
-                                Self::alpha_over(&mut img, &sprite, screen_x, screen_y);
+                                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
                             }
                         }
                     }
@@ -441,11 +453,11 @@ impl IsometricRenderer {
 
     /// Render an entire chunk (all Y levels from min_y to max_y)
     /// Returns the rendered image with proper isometric layering
-    pub fn render_chunk<F>(&mut self, get_block: F, min_y: i32, max_y: i32) -> RgbaImage
+    pub fn render_chunk<F>(&mut self, get_block: F, min_y: isize, max_y: isize) -> RgbaImage
     where
-        F: Fn(usize, i32, usize) -> Option<String>,
+        F: Fn(isize, isize, isize) -> Option<String>,
     {
-        let total_height = (max_y - min_y) as u32;
+        let total_height = max_y - min_y;
 
         // Calculate output image size
         // Width: same as section (16 blocks in X and Z)
@@ -456,18 +468,18 @@ impl IsometricRenderer {
         // - Base plane at lowest Y: 16*6 pixels for the X+Z diagonal
         // - Each Y level adds 12 pixels of height
         // - Plus block height (24 pixels for the topmost blocks)
-        let height = (total_height * 12) + (16 * 6) + 24;
+        let height = ((total_height * 12) + (16 * 6) + 24) as u32;
 
         let mut img = RgbaImage::new(width, height);
 
         // Render from back to front, bottom to top (painter's algorithm)
         for y in min_y..max_y {
             // Render in diagonal slices from back-left to front-right
-            for sum in 0..32u32 {
+            for sum in 0..32isize {
                 for x in 0..=sum {
                     let z = sum - x;
                     if x < 16 && z < 16 {
-                        if let Some(block_name) = get_block(x as usize, y, z as usize) {
+                        if let Some(block_name) = get_block(x, y, z) {
                             if block_name != "minecraft:air"
                                 && block_name != "minecraft:cave_air"
                                 && block_name != "minecraft:void_air"
@@ -475,13 +487,102 @@ impl IsometricRenderer {
                                 let sprite = self.get_block_sprite(&block_name);
 
                                 // Calculate screen position
-                                let screen_x =
-                                    (x as i32 - z as i32) * 12 + (width as i32 / 2) - 12;
-                                let screen_y = (x as i32 + z as i32) * 6
-                                    - ((y - min_y) as i32) * 12
-                                    + (height as i32 - 16 * 6 - 24);
+                                let screen_x = (x - z) as u32 * 12 + (width / 2) - 12;
+                                let screen_y = (x + z) as u32 * 6 - (y - min_y) as u32 * 12
+                                    + (height - 16 * 6 - 24);
 
-                                Self::alpha_over(&mut img, &sprite, screen_x, screen_y);
+                                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        img
+    }
+
+    /// Render multiple chunks in a grid
+    /// chunk_range: (min_cx, min_cz, max_cx, max_cz) inclusive
+    /// get_block takes world coordinates (world_x, world_y, world_z)
+    pub fn render_world<F>(
+        &mut self,
+        get_block: F,
+        chunk_min_x: isize,
+        chunk_min_z: isize,
+        chunk_max_x: isize,
+        chunk_max_z: isize,
+        min_y: isize,
+        max_y: isize,
+    ) -> RgbaImage
+    where
+        F: Fn(isize, isize, isize) -> Option<String>,
+    {
+        // Calculate world coordinate ranges
+        let world_min_x = chunk_min_x * 16;
+        let world_max_x = chunk_max_x * 16 + 15;
+        let world_min_z = chunk_min_z * 16;
+        let world_max_z = chunk_max_z * 16 + 15;
+
+        let world_width_x = (world_max_x - world_min_x + 1) as u32;
+        let world_width_z = (world_max_z - world_min_z + 1) as u32;
+        let total_height = (max_y - min_y) as u32;
+
+        // Calculate output image size
+        // Screen X is based on (world_x - world_z), range from min to max
+        // Screen Y is based on (world_x + world_z) - y * 2
+        let width = (world_width_x + world_width_z) * 12;
+        let height = (world_width_x + world_width_z) * 6 + total_height * 12 + 24;
+
+        println!(
+            "Rendering world region: chunks ({},{}) to ({},{})",
+            chunk_min_x, chunk_min_z, chunk_max_x, chunk_max_z
+        );
+        println!(
+            "World coords: ({},{}) to ({},{}), Y: {} to {}",
+            world_min_x, world_min_z, world_max_x, world_max_z, min_y, max_y
+        );
+        println!("Output image size: {}x{}", width, height);
+
+        let mut img = RgbaImage::new(width, height);
+
+        // Render from back to front, bottom to top (painter's algorithm)
+        // For multiple chunks, we need to iterate in the correct order:
+        // - Y from low to high
+        // - Diagonal slices from back (high x+z) to front (low x+z)
+
+        for y in min_y..max_y {
+            // Render in diagonal slices
+            // sum = world_x + world_z, from max to min (back to front)
+            let min_sum = world_min_x + world_min_z;
+            let max_sum = world_max_x + world_max_z;
+
+            for sum in min_sum..=max_sum {
+                // For each diagonal, iterate through valid (x, z) pairs
+                for world_x in world_min_x..=world_max_x {
+                    let world_z = sum - world_x;
+                    if world_z >= world_min_z && world_z <= world_max_z {
+                        if let Some(block_name) = get_block(world_x, y, world_z) {
+                            if block_name != "minecraft:air"
+                                && block_name != "minecraft:cave_air"
+                                && block_name != "minecraft:void_air"
+                            {
+                                let sprite = self.get_block_sprite(&block_name);
+
+                                // Calculate screen position
+                                // Normalize coordinates relative to the world minimum
+                                let rel_x = world_x - world_min_x;
+                                let rel_z = world_z - world_min_z;
+
+                                let screen_x =
+                                    ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
+                                let screen_y = ((rel_x + rel_z) * 6 - (y - min_y) * 12
+                                    + (height as isize
+                                        - (world_width_x + world_width_z) as isize * 6 / 2
+                                        - 24))
+                                    as u32;
+
+                                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
                             }
                         }
                     }
