@@ -6,6 +6,9 @@ use std::collections::HashMap;
 
 use crate::utils::{darken_image, tint_image};
 
+const SPRITE_SIZE: u32 = 24;
+const MC_CHUNK_SIZE: isize = 16;
+
 /// Isometric renderer for Minecraft chunks/sections
 pub struct IsometricRenderer {
     texture_cache: HashMap<String, RgbaImage>,
@@ -70,12 +73,12 @@ impl IsometricRenderer {
     /// Transform a texture for the top face of an isometric block
     /// Rotates 45 degrees and scales Y by 0.5
     /// Output: 24x12 pixels
-    pub fn transform_top(texture: &RgbaImage) -> RgbaImage {
+    fn transform_top(texture: &RgbaImage) -> RgbaImage {
         // Resize to 17x17 for better sampling
         let resized = imageops::resize(texture, 17, 17, imageops::FilterType::Triangle);
 
         // Create output image (24x12 for top face)
-        let mut output = RgbaImage::new(24, 12);
+        let mut output = RgbaImage::new(SPRITE_SIZE, 12);
 
         // The transformation matrix for isometric top view:
         // 1. Rotate 45 degrees
@@ -87,7 +90,7 @@ impl IsometricRenderer {
         let sin45 = std::f64::consts::FRAC_1_SQRT_2;
 
         for out_y in 0..12 {
-            for out_x in 0..24 {
+            for out_x in 0..SPRITE_SIZE {
                 // Transform output coordinates back to source coordinates
                 // First, center the output coordinates
                 let cx = out_x as f64 - 12.0;
@@ -119,25 +122,38 @@ impl IsometricRenderer {
     /// Transform a texture for the left side of an isometric block
     /// Applies a shear transformation
     /// Output: 12x18 pixels
-    pub fn transform_side_left(texture: &RgbaImage) -> RgbaImage {
+    fn transform_side(texture: &RgbaImage, side: BlockSpriteSide) -> RgbaImage {
+        const RESIZED_DIM: u32 = 12;
+        const SHEARED_HEIGHT: u32 = 18;
+
         // Resize to 12x12
-        let resized = imageops::resize(texture, 24 / 2, 24 / 2, imageops::FilterType::Triangle);
+        let resized = imageops::resize(
+            texture,
+            RESIZED_DIM,
+            RESIZED_DIM,
+            imageops::FilterType::Triangle,
+        );
 
         // Create output image (12x18 for side face after shear)
-        let mut output = RgbaImage::new(12, 18);
+        let mut output = RgbaImage::new(RESIZED_DIM, SHEARED_HEIGHT);
+
+        let shear_factor = match side {
+            BlockSpriteSide::SideLeft => -0.5,
+            BlockSpriteSide::SideRight => 0.5,
+        };
 
         // Shear transformation: y_new = y + 0.5 * x
         // Inverse: y_src = y_out - 0.5 * x_out
-        for out_y in 0..18 {
-            for out_x in 0..12 {
+        for out_y in 0..SHEARED_HEIGHT {
+            for out_x in 0..RESIZED_DIM {
                 // Apply inverse shear to find source coordinates
                 let src_x = out_x as f64;
-                let src_y = out_y as f64 - 0.5 * out_x as f64;
+                let src_y = out_y as f64 - shear_factor * out_x as f64;
 
-                if src_y >= 0.0 && src_y < 12.0 {
+                if src_x >= 0.0 && src_y >= 0.0 {
                     let sx = src_x as u32;
                     let sy = src_y as u32;
-                    if sx < 12 && sy < 12 {
+                    if sy < resized.height() && sx < resized.width() {
                         let pixel = resized.get_pixel(sx, sy);
                         output.put_pixel(out_x, out_y, *pixel);
                     }
@@ -148,24 +164,17 @@ impl IsometricRenderer {
         output
     }
 
-    /// Transform a texture for the right side of an isometric block
-    /// Mirror of left side
-    pub fn transform_side_right(texture: &RgbaImage) -> RgbaImage {
-        let left = Self::transform_side_left(texture);
-        imageops::flip_horizontal(&left)
-    }
-
     /// Build a full isometric block from top and side textures
     /// Returns a 24x24 image
-    pub fn render_block_3d(&self, top: &RgbaImage, side: &RgbaImage) -> RgbaImage {
-        let mut img = RgbaImage::new(24, 24);
+    fn render_block_3d(&self, top: &RgbaImage, side: &RgbaImage) -> RgbaImage {
+        let mut img = RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE);
 
         // Transform the top
         let top_transformed = Self::transform_top(top);
 
         // Transform the sides
-        let side_left = Self::transform_side_left(side);
-        let side_right = Self::transform_side_right(side);
+        let side_left = Self::transform_side(side, BlockSpriteSide::SideLeft);
+        let side_right = Self::transform_side(side, BlockSpriteSide::SideRight);
 
         // Darken the sides (left 0.9, right 0.8)
         let side_left = darken_image(&side_left, 0.9);
@@ -202,7 +211,7 @@ impl IsometricRenderer {
     fn create_block_sprite(&mut self, name: &str) -> RgbaImage {
         // Handle special cases first
         if name == "air" || name == "cave_air" || name == "void_air" {
-            return RgbaImage::new(24, 24); // Transparent
+            return RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE); // Transparent
         }
 
         // Handle transparent/partial blocks that we skip for now
@@ -243,7 +252,7 @@ impl IsometricRenderer {
             || name.contains("amethyst_cluster")
             || name.contains("amethyst_bud")
         {
-            return RgbaImage::new(24, 24); // Transparent for now - complex geometry
+            return RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE); // Transparent for now - complex geometry
         }
 
         // Try different texture naming patterns
@@ -375,10 +384,10 @@ impl IsometricRenderer {
         F: Fn(isize, isize, isize) -> Option<String>,
     {
         // Calculate world coordinate ranges
-        let world_min_x = chunk_min_x * 16;
-        let world_max_x = chunk_max_x * 16 + 15;
-        let world_min_z = chunk_min_z * 16;
-        let world_max_z = chunk_max_z * 16 + 15;
+        let world_min_x = chunk_min_x * MC_CHUNK_SIZE;
+        let world_max_x = chunk_max_x * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1;
+        let world_min_z = chunk_min_z * MC_CHUNK_SIZE;
+        let world_max_z = chunk_max_z * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1;
 
         let world_width_x = (world_max_x - world_min_x + 1) as u32;
         let world_width_z = (world_max_z - world_min_z + 1) as u32;
@@ -448,4 +457,9 @@ impl IsometricRenderer {
 
         img
     }
+}
+
+enum BlockSpriteSide {
+    SideLeft,
+    SideRight,
 }
