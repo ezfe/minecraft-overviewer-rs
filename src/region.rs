@@ -6,7 +6,7 @@ use std::{
 
 use flate2::bufread::ZlibDecoder;
 
-use crate::{chunk::Chunk, coords::WorldChunkCoord};
+use crate::{chunk::Chunk, coords::world_chunk_coord::WorldChunkCoord};
 
 pub fn read_chunk(path: PathBuf, chunk_coord: &WorldChunkCoord) -> Option<Chunk> {
     let file = File::open(path).ok()?;

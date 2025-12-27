@@ -5,8 +5,8 @@ use image::{
 
 use crate::{
     asset_cache::AssetCache,
-    blocks::{is_air_block, is_complex_geometry, is_solid_block},
-    coords::WorldBlockCoord,
+    blocks::{is_air_block, is_complex_geometry},
+    coords::{world_block_coord::WorldBlockCoord, world_chunk_coord::WorldChunkCoord},
     utils::{darken_image, tint_image},
 };
 
@@ -283,10 +283,8 @@ fn create_missing_block() -> RgbaImage {
 pub fn render_world<F>(
     cache: &mut AssetCache,
     get_block: F,
-    chunk_min_x: isize,
-    chunk_min_z: isize,
-    chunk_max_x: isize,
-    chunk_max_z: isize,
+    chunk_min: &WorldChunkCoord,
+    chunk_max: &WorldChunkCoord,
     min_y: isize,
     max_y: isize,
 ) -> RgbaImage
@@ -295,14 +293,14 @@ where
 {
     // Calculate world coordinate ranges
     let world_min = WorldBlockCoord {
-        x: chunk_min_x * MC_CHUNK_SIZE,
+        x: chunk_min.cx * MC_CHUNK_SIZE,
         y: min_y,
-        z: chunk_min_z * MC_CHUNK_SIZE,
+        z: chunk_min.cz * MC_CHUNK_SIZE,
     };
     let world_max = WorldBlockCoord {
-        x: chunk_max_x * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
+        x: chunk_min.cx * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
         y: max_y,
-        z: chunk_max_z * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
+        z: chunk_min.cz * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
     };
 
     let world_width_x = world_max.x - world_min.x + 1;
@@ -316,8 +314,8 @@ where
     let height = ((world_width_x + world_width_z) * 6 + total_height * 12 + 24) as u32;
 
     println!(
-        "Rendering world region: chunks ({},{}) to ({},{})",
-        chunk_min_x, chunk_min_z, chunk_max_x, chunk_max_z
+        "Rendering world region: chunks ({}) to ({})",
+        chunk_min, chunk_max
     );
     println!("World coords: ({}) to ({})", world_min, world_max);
     println!("Output image size: {}x{}", width, height);
@@ -329,7 +327,7 @@ where
     // - Y from low to high
     // - Diagonal slices from back (high x+z) to front (low x+z)
 
-    for y in min_y..max_y {
+    for y in world_min.y..world_max.y {
         // Render in diagonal slices
         // sum = world_x + world_z, from max to min (back to front)
         let min_sum = world_min.x + world_min.z;
@@ -347,7 +345,7 @@ where
                     };
 
                     if let Some(block_name) = get_block(&block_coords) {
-                        if should_render(&block_name, &block_coords, &get_block) {
+                        if !is_air_block(&block_name) {
                             let sprite = get_block_sprite(cache, &block_name);
 
                             // Calculate screen position
@@ -371,49 +369,6 @@ where
     }
 
     img
-}
-
-fn should_render<F>(block_name: &str, coords: &WorldBlockCoord, get_block: &F) -> bool
-where
-    F: Fn(&WorldBlockCoord) -> Option<String>,
-{
-    if is_air_block(block_name) {
-        return false;
-    }
-
-    // let block_plus_x = WorldBlockCoord {
-    //     x: coords.x + 1,
-    //     y: coords.y,
-    //     z: coords.z,
-    // };
-    // let block_plus_z = WorldBlockCoord {
-    //     x: coords.x,
-    //     y: coords.y,
-    //     z: coords.z + 1,
-    // };
-    // let block_plus_y = WorldBlockCoord {
-    //     x: coords.x,
-    //     y: coords.y + 1,
-    //     z: coords.z,
-    // };
-
-    // let neighbor_plus_x = get_block(&block_plus_x);
-    // let neighbor_plus_z = get_block(&block_plus_z);
-    // let neighbor_plus_y = get_block(&block_plus_y);
-
-    // if let Some(neighbor_plus_x) = neighbor_plus_x
-    //     && let Some(neighbor_plus_z) = neighbor_plus_z
-    //     && let Some(neighbor_plus_y) = neighbor_plus_y
-    // {
-    //     if is_solid_block(&neighbor_plus_x)
-    //         && is_solid_block(&neighbor_plus_z)
-    //         && is_solid_block(&neighbor_plus_y)
-    //     {
-    //         return false;
-    //     }
-    // }
-
-    return true;
 }
 
 enum BlockSpriteSide {

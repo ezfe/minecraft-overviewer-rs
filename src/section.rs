@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use fastnbt::LongArray;
 use serde::Deserialize;
 
-use crate::coords::ChunkLocalBlockCoord;
+use crate::coords::chunk_local_block_coord::ChunkLocalBlockCoord;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
