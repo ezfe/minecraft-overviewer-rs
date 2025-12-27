@@ -6,10 +6,10 @@ use std::{
     path::PathBuf,
 };
 
-use crate::chunk::Chunk;
-use crate::region::read_chunk;
-use crate::renderer::IsometricRenderer;
+use crate::{asset_cache::AssetCache, chunk::Chunk};
+use crate::{region::read_chunk, renderer::render_world};
 
+mod asset_cache;
 mod chunk;
 mod region;
 mod renderer;
@@ -156,12 +156,13 @@ fn main() -> Result<()> {
     println!("Y range across all chunks: {} to {}", min_y, max_y);
 
     // Create the isometric renderer
-    let mut renderer = IsometricRenderer::new(ASSETS);
+    let mut asset_cache = AssetCache::new(ASSETS);
 
     println!("Rendering 3x3 chunk region...");
 
     // Render all chunks
-    let img = renderer.render_world(
+    let img = render_world(
+        &mut asset_cache,
         |x, y, z| store.get_block_at(x, y, z),
         chunk_min_x,
         chunk_min_z,
