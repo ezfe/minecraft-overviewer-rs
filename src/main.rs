@@ -6,11 +6,17 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{asset_cache::AssetCache, chunk::Chunk};
+use crate::{
+    asset_cache::AssetCache,
+    chunk::Chunk,
+    coords::{WorldBlockCoord, WorldChunkCoord},
+};
 use crate::{region::read_chunk, renderer::render_world};
 
 mod asset_cache;
+mod blocks;
 mod chunk;
+mod coords;
 mod region;
 mod renderer;
 mod section;
@@ -18,7 +24,7 @@ mod utils;
 
 /// A collection of loaded chunks indexed by (chunk_x, chunk_z)
 struct ChunkStore {
-    chunks: HashMap<(isize, isize), Chunk>,
+    chunks: HashMap<WorldChunkCoord, Chunk>,
 }
 
 impl ChunkStore {
@@ -28,35 +34,26 @@ impl ChunkStore {
         }
     }
 
-    fn insert(&mut self, cx: isize, cz: isize, chunk: Chunk) {
-        self.chunks.insert((cx, cz), chunk);
+    fn insert(&mut self, coord: WorldChunkCoord, chunk: Chunk) {
+        self.chunks.insert(coord, chunk);
     }
 
-    fn get(&self, cx: isize, cz: isize) -> Option<&Chunk> {
-        self.chunks.get(&(cx, cz))
+    fn get(&self, coord: WorldChunkCoord) -> Option<&Chunk> {
+        self.chunks.get(&coord)
     }
 
     /// Get block at world coordinates
-    fn get_block_at(&self, world_x: isize, world_y: isize, world_z: isize) -> Option<String> {
-        // Calculate chunk coordinates
-        let cx = world_x.div_euclid(16);
-        let cz = world_z.div_euclid(16);
+    fn get_block_at(&self, block_coords: &WorldBlockCoord) -> Option<String> {
+        let chunk = self.get(block_coords.chunk_coord())?;
 
-        let chunk = self.get(cx, cz)?;
+        let local_coords = block_coords.chunk_local_coord();
 
-        // Calculate local coordinates within chunk
-        let local_x = world_x.rem_euclid(16) as usize;
-        let local_z = world_z.rem_euclid(16) as usize;
+        let section = chunk
+            .sections
+            .iter()
+            .find(|s| s.y == block_coords.chunk_y_section())?;
 
-        // Find the section for this Y level
-        let section_y = world_y.div_euclid(16) as i8;
-        let section = chunk.sections.iter().find(|s| s.y == section_y)?;
-
-        // Get block within section
-        let local_y = world_y.rem_euclid(16) as usize;
-        section
-            .block_at(local_x, local_y, local_z)
-            .map(|p| p.name.clone())
+        section.block_at(local_coords).map(|p| p.name.clone())
     }
 
     /// Get the Y range across all loaded chunks
@@ -118,10 +115,11 @@ fn main() -> Result<()> {
 
     for cx in chunk_min_x..=chunk_max_x {
         for cz in chunk_min_z..=chunk_max_z {
+            let chunk_coord = WorldChunkCoord { cx, cz };
+
             // Calculate which region file this chunk is in
-            let region_x = cx.div_euclid(32);
-            let region_z = cz.div_euclid(32);
-            let region_name = format!("r.{}.{}.mca", region_x, region_z);
+            let region_coord = chunk_coord.region_coord();
+            let region_name = region_coord.file_name();
 
             // Find the region file
             let region_path = region_files
@@ -129,16 +127,16 @@ fn main() -> Result<()> {
                 .find(|p| p.file_name() == Some(OsStr::new(&region_name)));
 
             if let Some(path) = region_path {
-                if let Some(chunk) = read_chunk(path.clone(), cx, cz) {
-                    println!("Loaded chunk ({}, {})", cx, cz);
-                    store.insert(cx, cz, chunk);
+                if let Some(chunk) = read_chunk(path.clone(), &chunk_coord) {
+                    println!("Loaded chunk ({})", chunk_coord);
+                    store.insert(chunk_coord, chunk);
                 } else {
-                    println!("Chunk ({}, {}) not found in region", cx, cz);
+                    println!("Chunk ({}) not found in region", chunk_coord);
                 }
             } else {
                 println!(
-                    "Region file {} not found for chunk ({}, {})",
-                    region_name, cx, cz
+                    "Region file {} not found for chunk ({})",
+                    region_name, chunk_coord
                 );
             }
         }
@@ -163,7 +161,7 @@ fn main() -> Result<()> {
     // Render all chunks
     let img = render_world(
         &mut asset_cache,
-        |x, y, z| store.get_block_at(x, y, z),
+        |coords| store.get_block_at(coords),
         chunk_min_x,
         chunk_min_z,
         chunk_max_x,
@@ -173,7 +171,7 @@ fn main() -> Result<()> {
     );
 
     // Save the rendered image
-    let output_path = "output_world.png";
+    let output_path = "out/world.png";
     img.save(output_path).expect("Failed to save image");
     println!(
         "Rendered world saved to {} ({}x{} pixels)",

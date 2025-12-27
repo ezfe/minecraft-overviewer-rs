@@ -5,6 +5,8 @@ use image::{
 
 use crate::{
     asset_cache::AssetCache,
+    blocks::{is_air_block, is_complex_geometry, is_solid_block},
+    coords::WorldBlockCoord,
     utils::{darken_image, tint_image},
 };
 
@@ -78,10 +80,7 @@ fn transform_side(texture: &RgbaImage, side: BlockSpriteSide) -> RgbaImage {
     // Create output image (12x18 for side face after shear)
     let mut output = RgbaImage::new(RESIZED_DIM, SHEARED_HEIGHT);
 
-    let shear_factor = match side {
-        BlockSpriteSide::SideLeft => -0.5,
-        BlockSpriteSide::SideRight => 0.5,
-    };
+    let shear_factor = 0.5;
 
     // Shear transformation: y_new = y + 0.5 * x
     // Inverse: y_src = y_out - 0.5 * x_out
@@ -102,7 +101,10 @@ fn transform_side(texture: &RgbaImage, side: BlockSpriteSide) -> RgbaImage {
         }
     }
 
-    output
+    match side {
+        BlockSpriteSide::SideLeft => output,
+        BlockSpriteSide::SideRight => imageops::flip_horizontal(&output),
+    }
 }
 
 /// Build a full isometric block from top and side textures
@@ -157,43 +159,7 @@ fn create_block_sprite(cache: &mut AssetCache, name: &str) -> RgbaImage {
     }
 
     // Handle transparent/partial blocks that we skip for now
-    if name.contains("litter")
-        || name.contains("sapling")
-        || name.contains("flower")
-        || name.contains("grass") && !name.contains("block")
-        || name.contains("fern")
-        || name.contains("dead_bush")
-        || name.contains("seagrass")
-        || name.contains("kelp")
-        || name.contains("vine")
-        || name.contains("lily_pad")
-        || name.contains("torch")
-        || name.contains("fire")
-        || name.contains("redstone_wire")
-        || name.contains("rail")
-        || name.contains("ladder")
-        || name.contains("lever")
-        || name.contains("button")
-        || name.contains("pressure_plate")
-        || name.contains("tripwire")
-        || name.contains("string")
-        || name.contains("carpet") && !name.contains("moss")
-        || name.contains("fence") && !name.contains("gate")
-        || name.contains("wall") && !name.contains("sign")
-        || name.contains("bars")
-        || name.contains("chain")
-        || name.contains("lantern")
-        || name.contains("candle")
-        || name.contains("rod")
-        || name.contains("banner")
-        || name.contains("sign")
-        || name.contains("head")
-        || name.contains("skull")
-        || name.contains("dripstone")
-        || name.contains("pointed")
-        || name.contains("amethyst_cluster")
-        || name.contains("amethyst_bud")
-    {
+    if is_complex_geometry(name) {
         return RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE); // Transparent for now - complex geometry
     }
 
@@ -325,32 +291,35 @@ pub fn render_world<F>(
     max_y: isize,
 ) -> RgbaImage
 where
-    F: Fn(isize, isize, isize) -> Option<String>,
+    F: Fn(&WorldBlockCoord) -> Option<String>,
 {
     // Calculate world coordinate ranges
-    let world_min_x = chunk_min_x * MC_CHUNK_SIZE;
-    let world_max_x = chunk_max_x * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1;
-    let world_min_z = chunk_min_z * MC_CHUNK_SIZE;
-    let world_max_z = chunk_max_z * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1;
+    let world_min = WorldBlockCoord {
+        x: chunk_min_x * MC_CHUNK_SIZE,
+        y: min_y,
+        z: chunk_min_z * MC_CHUNK_SIZE,
+    };
+    let world_max = WorldBlockCoord {
+        x: chunk_max_x * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
+        y: max_y,
+        z: chunk_max_z * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
+    };
 
-    let world_width_x = (world_max_x - world_min_x + 1) as u32;
-    let world_width_z = (world_max_z - world_min_z + 1) as u32;
-    let total_height = (max_y - min_y) as u32;
+    let world_width_x = world_max.x - world_min.x + 1;
+    let world_width_z = world_max.z - world_min.z + 1;
+    let total_height = world_max.y - world_min.y;
 
     // Calculate output image size
     // Screen X is based on (world_x - world_z), range from min to max
     // Screen Y is based on (world_x + world_z) - y * 2
-    let width = (world_width_x + world_width_z) * 12;
-    let height = (world_width_x + world_width_z) * 6 + total_height * 12 + 24;
+    let width = ((world_width_x + world_width_z) * 12) as u32;
+    let height = ((world_width_x + world_width_z) * 6 + total_height * 12 + 24) as u32;
 
     println!(
         "Rendering world region: chunks ({},{}) to ({},{})",
         chunk_min_x, chunk_min_z, chunk_max_x, chunk_max_z
     );
-    println!(
-        "World coords: ({},{}) to ({},{}), Y: {} to {}",
-        world_min_x, world_min_z, world_max_x, world_max_z, min_y, max_y
-    );
+    println!("World coords: ({}) to ({})", world_min, world_max);
     println!("Output image size: {}x{}", width, height);
 
     let mut img = RgbaImage::new(width, height);
@@ -363,25 +332,28 @@ where
     for y in min_y..max_y {
         // Render in diagonal slices
         // sum = world_x + world_z, from max to min (back to front)
-        let min_sum = world_min_x + world_min_z;
-        let max_sum = world_max_x + world_max_z;
+        let min_sum = world_min.x + world_min.z;
+        let max_sum = world_max.x + world_max.z;
 
         for sum in min_sum..=max_sum {
             // For each diagonal, iterate through valid (x, z) pairs
-            for world_x in world_min_x..=world_max_x {
+            for world_x in world_min.x..=world_max.x {
                 let world_z = sum - world_x;
-                if world_z >= world_min_z && world_z <= world_max_z {
-                    if let Some(block_name) = get_block(world_x, y, world_z) {
-                        if block_name != "minecraft:air"
-                            && block_name != "minecraft:cave_air"
-                            && block_name != "minecraft:void_air"
-                        {
+                if world_z >= world_min.z && world_z <= world_max.z {
+                    let block_coords = WorldBlockCoord {
+                        x: world_x,
+                        y,
+                        z: world_z,
+                    };
+
+                    if let Some(block_name) = get_block(&block_coords) {
+                        if should_render(&block_name, &block_coords, &get_block) {
                             let sprite = get_block_sprite(cache, &block_name);
 
                             // Calculate screen position
                             // Normalize coordinates relative to the world minimum
-                            let rel_x = world_x - world_min_x;
-                            let rel_z = world_z - world_min_z;
+                            let rel_x = block_coords.x - world_min.x;
+                            let rel_z = block_coords.z - world_min.z;
 
                             let screen_x =
                                 ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
@@ -399,6 +371,49 @@ where
     }
 
     img
+}
+
+fn should_render<F>(block_name: &str, coords: &WorldBlockCoord, get_block: &F) -> bool
+where
+    F: Fn(&WorldBlockCoord) -> Option<String>,
+{
+    if is_air_block(block_name) {
+        return false;
+    }
+
+    // let block_plus_x = WorldBlockCoord {
+    //     x: coords.x + 1,
+    //     y: coords.y,
+    //     z: coords.z,
+    // };
+    // let block_plus_z = WorldBlockCoord {
+    //     x: coords.x,
+    //     y: coords.y,
+    //     z: coords.z + 1,
+    // };
+    // let block_plus_y = WorldBlockCoord {
+    //     x: coords.x,
+    //     y: coords.y + 1,
+    //     z: coords.z,
+    // };
+
+    // let neighbor_plus_x = get_block(&block_plus_x);
+    // let neighbor_plus_z = get_block(&block_plus_z);
+    // let neighbor_plus_y = get_block(&block_plus_y);
+
+    // if let Some(neighbor_plus_x) = neighbor_plus_x
+    //     && let Some(neighbor_plus_z) = neighbor_plus_z
+    //     && let Some(neighbor_plus_y) = neighbor_plus_y
+    // {
+    //     if is_solid_block(&neighbor_plus_x)
+    //         && is_solid_block(&neighbor_plus_z)
+    //         && is_solid_block(&neighbor_plus_y)
+    //     {
+    //         return false;
+    //     }
+    // }
+
+    return true;
 }
 
 enum BlockSpriteSide {

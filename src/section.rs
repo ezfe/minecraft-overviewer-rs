@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use fastnbt::LongArray;
 use serde::Deserialize;
 
+use crate::coords::ChunkLocalBlockCoord;
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 pub struct Section {
@@ -61,14 +63,9 @@ pub struct PaletteEntry {
 }
 
 impl Section {
-    pub fn block_at(&self, x: usize, y: usize, z: usize) -> Option<&PaletteEntry> {
-        let x = x % 16;
-        let y = y % 16;
-        let z = z % 16;
-
-        let index = y * 256 + z * 16 + x;
+    pub fn block_at(&self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
         let indices = self.block_states.as_ref()?.unpack_blockstates()?;
-        let palette_index = indices[index] as usize;
+        let palette_index = indices[coords.index()] as usize;
         return self.block_states.as_ref()?.palette.get(palette_index);
     }
 }

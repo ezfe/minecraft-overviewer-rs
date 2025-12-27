@@ -6,9 +6,9 @@ use std::{
 
 use flate2::bufread::ZlibDecoder;
 
-use crate::chunk::Chunk;
+use crate::{chunk::Chunk, coords::WorldChunkCoord};
 
-pub fn read_chunk(path: PathBuf, chunk_x: isize, chunk_z: isize) -> Option<Chunk> {
+pub fn read_chunk(path: PathBuf, chunk_coord: &WorldChunkCoord) -> Option<Chunk> {
     let file = File::open(path).ok()?;
     let mut reader = BufReader::new(file);
 
@@ -21,8 +21,8 @@ pub fn read_chunk(path: PathBuf, chunk_x: isize, chunk_z: isize) -> Option<Chunk
     reader.read_exact(&mut timestamp_table).ok()?;
 
     // Handle negative chunk coordinates properly
-    let local_x = chunk_x.rem_euclid(32);
-    let local_z = chunk_z.rem_euclid(32);
+    let local_x = chunk_coord.cx.rem_euclid(32);
+    let local_z = chunk_coord.cz.rem_euclid(32);
     let chunk_index = (local_x + local_z * 32) * 4;
     let chunk_index = chunk_index as usize;
 
