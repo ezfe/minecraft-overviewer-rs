@@ -1,5 +1,3 @@
-use core::fmt;
-
 #[derive(Debug, Clone, Copy)]
 pub struct ChunkLocalBlockCoord {
     pub lx: usize,

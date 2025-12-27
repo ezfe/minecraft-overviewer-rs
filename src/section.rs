@@ -64,8 +64,14 @@ pub struct PaletteEntry {
 
 impl Section {
     pub fn block_at(&self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
-        let indices = self.block_states.as_ref()?.unpack_blockstates()?;
+        let block_states = self.block_states.as_ref()?;
+
+        if block_states.data.is_none() {
+            return block_states.palette.first();
+        }
+
+        let indices = block_states.unpack_blockstates()?;
         let palette_index = indices[coords.index()] as usize;
-        return self.block_states.as_ref()?.palette.get(palette_index);
+        return block_states.palette.get(palette_index);
     }
 }

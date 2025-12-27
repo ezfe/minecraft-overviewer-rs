@@ -30,10 +30,80 @@ impl WorldBlockCoord {
     pub fn chunk_y_section(&self) -> i8 {
         self.y.div_euclid(16) as i8
     }
+
+    pub fn painters_range_to(self, other: &WorldBlockCoord) -> WorldBlockCoordIterator {
+        let min_coord = WorldBlockCoord {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+            z: self.z.min(other.z),
+        };
+        let max_coord = WorldBlockCoord {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+            z: self.z.max(other.z),
+        };
+
+        WorldBlockCoordIterator {
+            curr_x: min_coord.x,
+            curr_y: min_coord.y,
+            curr_sum: min_coord.x + min_coord.z,
+
+            min: min_coord,
+            max: max_coord,
+        }
+    }
 }
 
 impl fmt::Display for WorldBlockCoord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{},{},{}", self.x, self.y, self.z)
+    }
+}
+
+pub struct WorldBlockCoordIterator {
+    curr_y: isize,
+    curr_sum: isize,
+    curr_x: isize,
+
+    min: WorldBlockCoord,
+    max: WorldBlockCoord,
+}
+
+impl Iterator for WorldBlockCoordIterator {
+    type Item = WorldBlockCoord;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.curr_y > self.max.y {
+                return None;
+            }
+
+            let z = self.curr_sum - self.curr_x;
+            let mut result = None;
+
+            if z >= self.min.z && z <= self.max.z {
+                result = Some(WorldBlockCoord {
+                    x: self.curr_x,
+                    y: self.curr_y,
+                    z,
+                });
+            }
+
+            // Advance state
+            self.curr_x += 1;
+            if self.curr_x > self.max.x {
+                self.curr_sum += 1;
+                self.curr_x = self.min.x;
+
+                if self.curr_sum > (self.max.x + self.max.z) {
+                    self.curr_y += 1;
+                    self.curr_sum = self.min.x + self.min.z;
+                }
+            }
+
+            if result.is_some() {
+                return result;
+            }
+        }
     }
 }

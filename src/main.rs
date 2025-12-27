@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     ffi::OsStr,
     fs::{self},
     io::Result,
@@ -7,86 +6,27 @@ use std::{
 };
 
 use crate::{
-    asset_cache::AssetCache,
-    chunk::Chunk,
-    coords::{world_block_coord::WorldBlockCoord, world_chunk_coord::WorldChunkCoord},
+    asset_cache::AssetCache, chunk_store::ChunkStore, coords::world_chunk_coord::WorldChunkCoord,
 };
 use crate::{region::read_chunk, renderer::render_world};
 
 mod asset_cache;
 mod blocks;
 mod chunk;
+mod chunk_store;
 mod coords;
 mod region;
 mod renderer;
 mod section;
 mod utils;
 
-/// A collection of loaded chunks indexed by (chunk_x, chunk_z)
-struct ChunkStore {
-    chunks: HashMap<WorldChunkCoord, Chunk>,
-}
-
-impl ChunkStore {
-    fn new() -> Self {
-        Self {
-            chunks: HashMap::new(),
-        }
-    }
-
-    fn insert(&mut self, coord: WorldChunkCoord, chunk: Chunk) {
-        self.chunks.insert(coord, chunk);
-    }
-
-    fn get(&self, coord: WorldChunkCoord) -> Option<&Chunk> {
-        self.chunks.get(&coord)
-    }
-
-    /// Get block at world coordinates
-    fn get_block_at(&self, block_coords: &WorldBlockCoord) -> Option<String> {
-        let chunk = self.get(block_coords.chunk_coord())?;
-
-        let local_coords = block_coords.chunk_local_coord();
-
-        let section = chunk
-            .sections
-            .iter()
-            .find(|s| s.y == block_coords.chunk_y_section())?;
-
-        section.block_at(local_coords).map(|p| p.name.clone())
-    }
-
-    /// Get the Y range across all loaded chunks
-    fn get_y_range(&self) -> (isize, isize) {
-        let mut found_any = false;
-        let mut min_y = isize::MAX;
-        let mut max_y = isize::MIN;
-
-        for chunk in self.chunks.values() {
-            for section in &chunk.sections {
-                found_any = true;
-                let section_min = section.y as isize * 16;
-                let section_max = section_min + 16;
-                min_y = min_y.min(section_min);
-                max_y = max_y.max(section_max);
-            }
-        }
-
-        if !found_any {
-            (0, 256) // Default range
-        } else {
-            (min_y, max_y)
-        }
-    }
-}
-
 fn main() -> Result<()> {
     const SOURCE: &str = "sample_map/region";
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let chunk_min = WorldChunkCoord { cx: -3, cz: -3 };
-    let chunk_max = WorldChunkCoord { cx: 3, cz: 3 };
+    let chunk_min = WorldChunkCoord { cx: -10, cz: -10 };
+    let chunk_max = WorldChunkCoord { cx: 10, cz: 10 };
 
     println!("Loading chunks from ({}) to ({})", chunk_min, chunk_max);
 

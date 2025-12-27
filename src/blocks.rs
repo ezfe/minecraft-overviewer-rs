@@ -35,22 +35,18 @@ pub fn is_complex_geometry(name: &str) -> bool {
         || name.contains("pointed")
         || name.contains("amethyst_cluster")
         || name.contains("amethyst_bud")
+        || name.contains("chest")
+        || name.contains("infested_deepslate")
+        || name.contains("infested_stone")
+        || name.contains("magma_block")
+        || name.contains("waxed_")
+        || name.contains("dispenser")
+        || name.contains("_slab")
+        || name.contains("trial_spawner")
+        || name.contains("decorated_pot")
+        || name.contains("bubble_column")
 }
 
 pub fn is_air_block(name: &str) -> bool {
     name == "minecraft:air" || name == "minecraft:cave_air" || name == "minecraft:void_air"
-}
-
-pub fn is_solid_block(name: &str) -> bool {
-    !is_complex_geometry(name) && !is_air_block(name)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_air_is_not_solid() {
-        assert_eq!(is_solid_block("minecraft:air"), false, "Air should not be solid");
-    }
 }

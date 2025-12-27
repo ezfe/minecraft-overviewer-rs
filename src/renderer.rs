@@ -298,14 +298,14 @@ where
         z: chunk_min.cz * MC_CHUNK_SIZE,
     };
     let world_max = WorldBlockCoord {
-        x: chunk_min.cx * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
-        y: max_y,
-        z: chunk_min.cz * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
+        x: chunk_max.cx * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
+        y: max_y - 1,
+        z: chunk_max.cz * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
     };
 
     let world_width_x = world_max.x - world_min.x + 1;
     let world_width_z = world_max.z - world_min.z + 1;
-    let total_height = world_max.y - world_min.y;
+    let total_height = world_max.y - world_min.y + 1;
 
     // Calculate output image size
     // Screen X is based on (world_x - world_z), range from min to max
@@ -327,43 +327,22 @@ where
     // - Y from low to high
     // - Diagonal slices from back (high x+z) to front (low x+z)
 
-    for y in world_min.y..world_max.y {
-        // Render in diagonal slices
-        // sum = world_x + world_z, from max to min (back to front)
-        let min_sum = world_min.x + world_min.z;
-        let max_sum = world_max.x + world_max.z;
+    for block_coords in world_min.painters_range_to(&world_max) {
+        if let Some(block_name) = get_block(&block_coords) {
+            if !is_air_block(&block_name) {
+                let sprite = get_block_sprite(cache, &block_name);
 
-        for sum in min_sum..=max_sum {
-            // For each diagonal, iterate through valid (x, z) pairs
-            for world_x in world_min.x..=world_max.x {
-                let world_z = sum - world_x;
-                if world_z >= world_min.z && world_z <= world_max.z {
-                    let block_coords = WorldBlockCoord {
-                        x: world_x,
-                        y,
-                        z: world_z,
-                    };
+                // Calculate screen position
+                // Normalize coordinates relative to the world minimum
+                let rel_x = block_coords.x - world_min.x;
+                let rel_z = block_coords.z - world_min.z;
 
-                    if let Some(block_name) = get_block(&block_coords) {
-                        if !is_air_block(&block_name) {
-                            let sprite = get_block_sprite(cache, &block_name);
+                let screen_x =
+                    ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
+                let screen_y = ((rel_x + rel_z) * 6 - (block_coords.y - min_y) * 12
+                    + (total_height * 12)) as u32;
 
-                            // Calculate screen position
-                            // Normalize coordinates relative to the world minimum
-                            let rel_x = block_coords.x - world_min.x;
-                            let rel_z = block_coords.z - world_min.z;
-
-                            let screen_x =
-                                ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
-                            let screen_y = ((rel_x + rel_z) * 6 - (y - min_y) * 12
-                                + (height as isize
-                                    - (world_width_x + world_width_z) as isize * 6 / 2
-                                    - 24)) as u32;
-
-                            overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
-                        }
-                    }
-                }
+                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
             }
         }
     }
