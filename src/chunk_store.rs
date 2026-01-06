@@ -24,15 +24,19 @@ impl ChunkStore {
         self.chunks.get(&coord)
     }
 
+    fn get_mut(&mut self, coord: WorldChunkCoord) -> Option<&mut Chunk> {
+        self.chunks.get_mut(&coord)
+    }
+
     /// Get block at world coordinates
-    pub fn get_block_at(&self, block_coords: &WorldBlockCoord) -> Option<String> {
-        let chunk = self.get(block_coords.chunk_coord())?;
+    pub fn get_block_at(&mut self, block_coords: &WorldBlockCoord) -> Option<String> {
+        let chunk = self.get_mut(block_coords.chunk_coord())?;
 
         let local_coords = block_coords.chunk_local_coord();
 
         let section = chunk
             .sections
-            .iter()
+            .iter_mut()
             .find(|s| s.y == block_coords.chunk_y_section())?;
 
         section.block_at(local_coords).map(|p| p.name.clone())

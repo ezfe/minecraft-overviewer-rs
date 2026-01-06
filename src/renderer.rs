@@ -282,14 +282,14 @@ fn create_missing_block() -> RgbaImage {
 /// get_block takes world coordinates (world_x, world_y, world_z)
 pub fn render_world<F>(
     cache: &mut AssetCache,
-    get_block: F,
+    mut get_block: F,
     chunk_min: &WorldChunkCoord,
     chunk_max: &WorldChunkCoord,
     min_y: isize,
     max_y: isize,
 ) -> RgbaImage
 where
-    F: Fn(&WorldBlockCoord) -> Option<String>,
+    F: FnMut(&WorldBlockCoord) -> Option<String>,
 {
     // Calculate world coordinate ranges
     let world_min = WorldBlockCoord {

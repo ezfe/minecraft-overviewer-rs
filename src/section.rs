@@ -19,13 +19,13 @@ pub struct Section {
 pub struct BlockStates {
     pub palette: Vec<PaletteEntry>,
     pub data: Option<LongArray>,
+    #[serde(default)]
+    pub unpacked_data: Option<Vec<u16>>,
 }
 
 impl BlockStates {
-    fn unpack_blockstates(&self) -> Option<Vec<u16>> {
+    fn unpack_blockstates(data: &LongArray) -> Vec<u16> {
         const BLOCK_COUNT: usize = 4096; // 16 * 16 * 16
-
-        let data = self.data.as_ref()?;
 
         // Calculate bits per value (minimum 4 bits)
         let bits_per_value = std::cmp::max(4, (data.len() * 64) / BLOCK_COUNT);
@@ -39,10 +39,10 @@ impl BlockStates {
         let mut result = Vec::with_capacity(BLOCK_COUNT);
 
         // Extract values from packed longs
-        for &long_value in data.iter() {
+        'outer: for &long_value in data.iter() {
             for j in 0..values_per_long {
                 if result.len() >= BLOCK_COUNT {
-                    return Some(result); // Stop when we have enough values
+                    break 'outer;
                 }
 
                 // Extract the value at position j from this long
@@ -51,7 +51,21 @@ impl BlockStates {
             }
         }
 
-        Some(result)
+        result
+    }
+
+    fn block_at(&mut self, index: usize) -> Option<&PaletteEntry> {
+        match &self.data {
+            None => return self.palette.first(),
+            Some(data) => {
+                if self.unpacked_data.is_none() {
+                    self.unpacked_data = Some(Self::unpack_blockstates(data));
+                }
+
+                let palette_index = self.unpacked_data.as_ref().unwrap()[index];
+                self.palette.get(palette_index as usize)
+            }
+        }
     }
 }
 
@@ -63,15 +77,10 @@ pub struct PaletteEntry {
 }
 
 impl Section {
-    pub fn block_at(&self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
-        let block_states = self.block_states.as_ref()?;
-
-        if block_states.data.is_none() {
-            return block_states.palette.first();
+    pub fn block_at(&mut self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
+        match &mut self.block_states {
+            None => return None,
+            Some(states) => states.block_at(coords.index()),
         }
-
-        let indices = block_states.unpack_blockstates()?;
-        let palette_index = indices[coords.index()] as usize;
-        return block_states.palette.get(palette_index);
     }
 }
