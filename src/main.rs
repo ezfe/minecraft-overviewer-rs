@@ -25,8 +25,9 @@ fn main() -> Result<()> {
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let chunk_min = WorldChunkCoord { cx: -5, cz: -5 };
-    let chunk_max = WorldChunkCoord { cx: 5, cz: 5 };
+    let r = 1;
+    let chunk_min = WorldChunkCoord { cx: 0 - r, cz: 0 - r };
+    let chunk_max = WorldChunkCoord { cx: 0 + r, cz: 0 + r };
 
     println!("Loading chunks from ({}) to ({})", chunk_min, chunk_max);
 
@@ -92,7 +93,7 @@ fn main() -> Result<()> {
     // Render all chunks
     let img = render_world(
         &mut asset_cache,
-        |coords| store.get_block_at(coords),
+        &mut store,
         &chunk_min,
         &chunk_max,
         min_y,

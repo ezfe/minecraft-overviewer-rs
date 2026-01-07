@@ -6,12 +6,16 @@ use image::{
 use crate::{
     asset_cache::AssetCache,
     blocks::{is_air_block, is_complex_geometry},
-    coords::{world_block_coord::WorldBlockCoord, world_chunk_coord::WorldChunkCoord},
+    chunk_store::ChunkStore,
+    coords::{
+        constants::MC_CHUNK_SIZE,
+        world_block_coord::{self, WorldBlockCoord},
+        world_chunk_coord::WorldChunkCoord,
+    },
     utils::{darken_image, tint_image},
 };
 
 const SPRITE_SIZE: u32 = 24;
-const MC_CHUNK_SIZE: isize = 16;
 
 /// Transform a texture for the top face of an isometric block
 /// Rotates 45 degrees and scales Y by 0.5
@@ -280,11 +284,72 @@ fn create_missing_block() -> RgbaImage {
 /// Render multiple chunks in a grid
 /// chunk_range: (min_cx, min_cz, max_cx, max_cz) inclusive
 /// get_block takes world coordinates (world_x, world_y, world_z)
-pub fn render_world<F>(
+pub fn render_world(
     cache: &mut AssetCache,
-    mut get_block: F,
+    store: &mut ChunkStore,
     chunk_min: &WorldChunkCoord,
     chunk_max: &WorldChunkCoord,
+    min_y: isize,
+    max_y: isize,
+) -> RgbaImage {
+    let chunk_width_x = chunk_max.cx - chunk_min.cx + 1;
+    let chunk_width_z = chunk_max.cz - chunk_min.cz + 1;
+
+    let total_height = max_y - min_y + 1;
+
+    // Calculate output image size
+    let xz_area_factor = MC_CHUNK_SIZE * (chunk_width_x + chunk_width_z) * 12;
+    let y_area_factor = total_height * 12;
+    let width = (xz_area_factor * 2) as u32;
+    let height = (xz_area_factor + y_area_factor + 24) as u32;
+
+    println!(
+        "Rendering world region: chunks ({}) to ({})",
+        chunk_min, chunk_max
+    );
+    println!(
+        "World coords: ({}) to ({})",
+        chunk_min.world_block_coord_min(min_y),
+        chunk_max.world_block_coord_max(max_y)
+    );
+    println!("Output image size: {}x{}", width, height);
+
+    let mut img = RgbaImage::new(width, height);
+
+    // Render from back to front, bottom to top (painter's algorithm)
+    // For multiple chunks, we need to iterate in the correct order:
+    // - Y from low to high
+    // - Diagonal slices from back (high x+z) to front (low x+z)
+
+    for chunk_coord in chunk_min.painters_range_to(chunk_max) {
+        println!("Rendering chunk ({})...", chunk_coord);
+
+        let chunk_img = render_chunk(
+            cache,
+            |coords| store.get_block_at(coords),
+            &chunk_coord,
+            min_y,
+            max_y,
+        );
+
+        let rel_x = chunk_coord.cx - chunk_min.cx;
+        let rel_z = chunk_coord.cz - chunk_min.cz;
+
+        // let screen_x = ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
+        // let screen_y = ((rel_x + rel_z) * 6 + (total_height * 12)) as u32;
+        let screen_x = 0;
+        let screen_y = 0;
+
+        overlay(&mut img, &chunk_img, screen_x as i64, screen_y as i64);
+    }
+
+    img
+}
+
+fn render_chunk<F>(
+    cache: &mut AssetCache,
+    mut get_block: F,
+    chunk_coord: &WorldChunkCoord,
     min_y: isize,
     max_y: isize,
 ) -> RgbaImage
@@ -292,31 +357,16 @@ where
     F: FnMut(&WorldBlockCoord) -> Option<String>,
 {
     // Calculate world coordinate ranges
-    let world_min = WorldBlockCoord {
-        x: chunk_min.cx * MC_CHUNK_SIZE,
-        y: min_y,
-        z: chunk_min.cz * MC_CHUNK_SIZE,
-    };
-    let world_max = WorldBlockCoord {
-        x: chunk_max.cx * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
-        y: max_y - 1,
-        z: chunk_max.cz * MC_CHUNK_SIZE + MC_CHUNK_SIZE - 1,
-    };
+    let world_min = chunk_coord.world_block_coord_min(min_y);
+    let world_max = chunk_coord.world_block_coord_max(max_y);
 
-    let world_width_x = world_max.x - world_min.x + 1;
-    let world_width_z = world_max.z - world_min.z + 1;
-    let total_height = world_max.y - world_min.y + 1;
+    let total_height = max_y - min_y + 1;
 
     // Calculate output image size
-    // Screen X is based on (world_x - world_z), range from min to max
-    // Screen Y is based on (world_x + world_z) - y * 2
-    let width = ((world_width_x + world_width_z) * 12) as u32;
-    let height = ((world_width_x + world_width_z) * 6 + total_height * 12 + 24) as u32;
+    let width = (MC_CHUNK_SIZE * 24) as u32;
+    let height = (MC_CHUNK_SIZE * 12 + total_height * 12 + 24) as u32;
 
-    println!(
-        "Rendering world region: chunks ({}) to ({})",
-        chunk_min, chunk_max
-    );
+    println!("Rendering chunk ({})", chunk_coord);
     println!("World coords: ({}) to ({})", world_min, world_max);
     println!("Output image size: {}x{}", width, height);
 
@@ -337,8 +387,7 @@ where
                 let rel_x = block_coords.x - world_min.x;
                 let rel_z = block_coords.z - world_min.z;
 
-                let screen_x =
-                    ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
+                let screen_x = ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
                 let screen_y = ((rel_x + rel_z) * 6 - (block_coords.y - min_y) * 12
                     + (total_height * 12)) as u32;
 

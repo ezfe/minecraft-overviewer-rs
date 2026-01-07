@@ -1,7 +1,8 @@
 use core::fmt;
 
 use crate::coords::{
-    chunk_local_block_coord::ChunkLocalBlockCoord, world_chunk_coord::WorldChunkCoord,
+    chunk_local_block_coord::ChunkLocalBlockCoord, painters_range::PaintersRange,
+    world_chunk_coord::WorldChunkCoord,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -57,6 +58,14 @@ impl WorldBlockCoord {
 impl fmt::Display for WorldBlockCoord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{},{},{}", self.x, self.y, self.z)
+    }
+}
+
+impl PaintersRange for WorldBlockCoord {
+    type Iter = WorldBlockCoordIterator;
+
+    fn painters_range_to(&self, other: &Self) -> Self::Iter {
+        Self::painters_range_to(*self, other)
     }
 }
 
