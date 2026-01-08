@@ -1,19 +1,18 @@
-use image::{
-    Rgba, RgbaImage,
-    imageops::{self, overlay},
-};
-
 use crate::{
     asset_cache::AssetCache,
     blocks::{is_air_block, is_complex_geometry},
     chunk_store::ChunkStore,
     coords::{
-        constants::MC_CHUNK_SIZE,
-        world_block_coord::{self, WorldBlockCoord},
+        constants::MC_CHUNK_SIZE, world_block_coord::WorldBlockCoord,
         world_chunk_coord::WorldChunkCoord,
     },
     utils::{darken_image, tint_image},
 };
+use image::{
+    Rgba, RgbaImage,
+    imageops::{self, overlay},
+};
+use rayon::prelude::*;
 
 const SPRITE_SIZE: u32 = 24;
 
@@ -137,10 +136,13 @@ fn render_block_3d(top: &RgbaImage, side: &RgbaImage) -> RgbaImage {
 
 /// Get or create a rendered block sprite for a block name
 /// Block name should be like "minecraft:stone" or "minecraft:grass_block"
-pub fn get_block_sprite(cache: &mut AssetCache, block_name: &str) -> RgbaImage {
+pub fn get_block_sprite(cache: &AssetCache, block_name: &str) -> RgbaImage {
     // Check cache first
-    if let Some(cached) = cache.block_cache.get(block_name) {
-        return cached.clone();
+    {
+        let block_cache = cache.block_cache.read().unwrap();
+        if let Some(cached) = block_cache.get(block_name) {
+            return cached.clone();
+        }
     }
 
     // Strip minecraft: prefix if present
@@ -149,14 +151,13 @@ pub fn get_block_sprite(cache: &mut AssetCache, block_name: &str) -> RgbaImage {
     // Try to load textures based on common naming patterns
     let sprite = create_block_sprite(cache, name);
 
-    cache
-        .block_cache
-        .insert(block_name.to_string(), sprite.clone());
+    let mut block_cache = cache.block_cache.write().unwrap();
+    block_cache.insert(block_name.to_string(), sprite.clone());
     sprite
 }
 
 /// Create a block sprite from a block name
-fn create_block_sprite(cache: &mut AssetCache, name: &str) -> RgbaImage {
+fn create_block_sprite(cache: &AssetCache, name: &str) -> RgbaImage {
     // Handle special cases first
     if name == "air" || name == "cave_air" || name == "void_air" {
         return RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE); // Transparent
@@ -285,8 +286,8 @@ fn create_missing_block() -> RgbaImage {
 /// chunk_range: (min_cx, min_cz, max_cx, max_cz) inclusive
 /// get_block takes world coordinates (world_x, world_y, world_z)
 pub fn render_world(
-    cache: &mut AssetCache,
-    store: &mut ChunkStore,
+    cache: &AssetCache,
+    store: &ChunkStore,
     chunk_min: &WorldChunkCoord,
     chunk_max: &WorldChunkCoord,
     min_y: isize,
@@ -321,46 +322,60 @@ pub fn render_world(
     // - Y from low to high
     // - Diagonal slices from back (high x+z) to front (low x+z)
 
-    for chunk_coord in chunk_min.painters_range_to(chunk_max) {
-        println!("Rendering chunk ({})...", chunk_coord);
+    let chunk_coords: Vec<WorldChunkCoord> = chunk_min.painters_range_to(chunk_max).collect();
+    let chunk_renders: Vec<ChunkRenderResult> = chunk_coords
+        .par_iter()
+        .map(|chunk_coord| {
+            render_chunk(
+                cache,
+                |coords| store.get_block_at(coords),
+                *chunk_coord,
+                min_y,
+                max_y,
+            )
+        })
+        .collect();
 
-        let chunk_img = render_chunk(
-            cache,
-            |coords| store.get_block_at(coords),
-            &chunk_coord,
-            min_y,
-            max_y,
-        );
-
+    for chunk_render in chunk_renders {
         let chunk_pos = img_coords(
-            chunk_img.width(),
-            chunk_coord.world_block_coord_min(min_y),
-            chunk_coord.world_block_coord_max(max_y),
-            chunk_coord.world_block_coord_min(min_y),
+            chunk_render.img.width(),
+            chunk_render.coord.world_block_coord_min(min_y),
+            chunk_render.coord.world_block_coord_max(max_y),
+            chunk_render.coord.world_block_coord_min(min_y),
         );
         let screen_pos = img_coords(
             img.width(),
             chunk_min.world_block_coord_min(min_y),
             chunk_max.world_block_coord_max(max_y),
-            chunk_coord.world_block_coord_min(min_y),
+            chunk_render.coord.world_block_coord_min(min_y),
         );
 
         let screen_x = screen_pos.0 - chunk_pos.0;
         let screen_y = screen_pos.1 - chunk_pos.1;
 
-        overlay(&mut img, &chunk_img, screen_x as i64, screen_y as i64);
+        overlay(
+            &mut img,
+            &chunk_render.img,
+            screen_x as i64,
+            screen_y as i64,
+        );
     }
 
     img
 }
 
+struct ChunkRenderResult {
+    coord: WorldChunkCoord,
+    img: RgbaImage,
+}
+
 fn render_chunk<F>(
-    cache: &mut AssetCache,
+    cache: &AssetCache,
     mut get_block: F,
-    chunk_coord: &WorldChunkCoord,
+    chunk_coord: WorldChunkCoord,
     min_y: isize,
     max_y: isize,
-) -> RgbaImage
+) -> ChunkRenderResult
 where
     F: FnMut(&WorldBlockCoord) -> Option<String>,
 {
@@ -373,10 +388,6 @@ where
     // Calculate output image size
     let width = (MC_CHUNK_SIZE * 24) as u32;
     let height = (MC_CHUNK_SIZE * 12 + total_height * 12 + 24) as u32;
-
-    println!("Rendering chunk ({})", chunk_coord);
-    println!("World coords: ({}) to ({})", world_min, world_max);
-    println!("Output image size: {}x{}", width, height);
 
     let mut img = RgbaImage::new(width, height);
 
@@ -391,7 +402,10 @@ where
         }
     }
 
-    img
+    ChunkRenderResult {
+        coord: chunk_coord,
+        img,
+    }
 }
 
 fn img_coords(

@@ -504,6 +504,7 @@ dependencies = [
  "fastnbt",
  "flate2",
  "image",
+ "rayon",
  "serde",
 ]
 

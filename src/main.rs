@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let r = 5;
+    let r = 20;
     let chunk_min = WorldChunkCoord {
         cx: 0 - r,
         cz: 0 - r,
@@ -67,7 +67,6 @@ fn main() -> Result<()> {
 
         if let Some(path) = region_path {
             if let Some(chunk) = read_chunk(path.clone(), &chunk_coord) {
-                println!("Loaded chunk ({})", chunk_coord);
                 store.insert(chunk_coord, chunk);
             } else {
                 println!("Chunk ({}) not found in region", chunk_coord);
