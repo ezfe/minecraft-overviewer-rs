@@ -300,7 +300,7 @@ pub fn render_world(
     // Calculate output image size
     let xz_area_factor = MC_CHUNK_SIZE * (chunk_width_x + chunk_width_z) * 12;
     let y_area_factor = total_height * 12;
-    let width = (xz_area_factor * 2) as u32;
+    let width = xz_area_factor as u32;
     let height = (xz_area_factor + y_area_factor + 24) as u32;
 
     println!(
@@ -332,13 +332,21 @@ pub fn render_world(
             max_y,
         );
 
-        let rel_x = chunk_coord.cx - chunk_min.cx;
-        let rel_z = chunk_coord.cz - chunk_min.cz;
+        let chunk_pos = img_coords(
+            chunk_img.width(),
+            chunk_coord.world_block_coord_min(min_y),
+            chunk_coord.world_block_coord_max(max_y),
+            chunk_coord.world_block_coord_min(min_y),
+        );
+        let screen_pos = img_coords(
+            img.width(),
+            chunk_min.world_block_coord_min(min_y),
+            chunk_max.world_block_coord_max(max_y),
+            chunk_coord.world_block_coord_min(min_y),
+        );
 
-        // let screen_x = ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
-        // let screen_y = ((rel_x + rel_z) * 6 + (total_height * 12)) as u32;
-        let screen_x = 0;
-        let screen_y = 0;
+        let screen_x = screen_pos.0 - chunk_pos.0;
+        let screen_y = screen_pos.1 - chunk_pos.1;
 
         overlay(&mut img, &chunk_img, screen_x as i64, screen_y as i64);
     }
@@ -372,31 +380,38 @@ where
 
     let mut img = RgbaImage::new(width, height);
 
-    // Render from back to front, bottom to top (painter's algorithm)
-    // For multiple chunks, we need to iterate in the correct order:
-    // - Y from low to high
-    // - Diagonal slices from back (high x+z) to front (low x+z)
-
-    for block_coords in world_min.painters_range_to(&world_max) {
-        if let Some(block_name) = get_block(&block_coords) {
+    for block_coord in world_min.painters_range_to(&world_max) {
+        if let Some(block_name) = get_block(&block_coord) {
             if !is_air_block(&block_name) {
                 let sprite = get_block_sprite(cache, &block_name);
 
-                // Calculate screen position
-                // Normalize coordinates relative to the world minimum
-                let rel_x = block_coords.x - world_min.x;
-                let rel_z = block_coords.z - world_min.z;
-
-                let screen_x = ((rel_x - rel_z) * 12 + (width as isize / 2) - 12) as u32;
-                let screen_y = ((rel_x + rel_z) * 6 - (block_coords.y - min_y) * 12
-                    + (total_height * 12)) as u32;
-
-                overlay(&mut img, &sprite, screen_x as i64, screen_y as i64);
+                let screen_pos = img_coords(width, world_min, world_max, block_coord);
+                overlay(&mut img, &sprite, screen_pos.0 as i64, screen_pos.1 as i64);
             }
         }
     }
 
     img
+}
+
+fn img_coords(
+    img_width: u32,
+    world_min: WorldBlockCoord,
+    world_max: WorldBlockCoord,
+    anchor_coord: WorldBlockCoord,
+) -> (u32, u32) {
+    let total_height = world_max.y - world_min.y + 1;
+
+    // Calculate screen position
+    // Normalize coordinates relative to the world minimum
+    let rel_x = anchor_coord.x - world_min.x;
+    let rel_z = anchor_coord.z - world_min.z;
+
+    let screen_x = ((rel_x - rel_z) * 12 + (img_width as isize / 2) - 12) as u32;
+    let screen_y =
+        ((rel_x + rel_z) * 6 - (anchor_coord.y - world_min.y) * 12 + (total_height * 12)) as u32;
+
+    (screen_x, screen_y)
 }
 
 enum BlockSpriteSide {
