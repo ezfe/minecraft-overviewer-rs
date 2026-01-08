@@ -25,9 +25,15 @@ fn main() -> Result<()> {
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let r = 1;
-    let chunk_min = WorldChunkCoord { cx: 0 - r, cz: 0 - r };
-    let chunk_max = WorldChunkCoord { cx: 0 + r, cz: 0 + r };
+    let r = 0;
+    let chunk_min = WorldChunkCoord {
+        cx: 0 - r,
+        cz: 0 - r,
+    };
+    let chunk_max = WorldChunkCoord {
+        cx: 0 + r,
+        cz: 0 + r,
+    };
 
     println!("Loading chunks from ({}) to ({})", chunk_min, chunk_max);
 

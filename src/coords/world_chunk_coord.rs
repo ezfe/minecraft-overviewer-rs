@@ -46,6 +46,7 @@ impl WorldChunkCoord {
         };
 
         WorldChunkCoordPaintersIterator {
+            exhausted: false,
             curr: None,
             min: min_coord,
             max: max_coord,
@@ -99,6 +100,8 @@ impl Iterator for WorldChunkCoordIterator {
 }
 
 pub struct WorldChunkCoordPaintersIterator {
+    /// The iterator is complete
+    exhausted: bool,
     /// Last returned value
     curr: Option<WorldChunkCoord>,
     /// Minimum coordinate (included)
@@ -111,19 +114,34 @@ impl Iterator for WorldChunkCoordPaintersIterator {
     type Item = WorldChunkCoord;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(curr) = self.curr {
-            let next_on_row = WorldChunkCoord {
-                cx: curr.cx + 1,
-                cz: curr.cz - 1
-            };
-            if next_on_row.cz >= self.min.cz {
-                self.curr = Some(next_on_row);
-                return self.curr;
-            }
+        if self.exhausted {
+            return None;
+        }
 
+        if let Some(curr) = self.curr {
+            self.curr = self.get_next_curr(curr);
+        } else {
+            self.curr = Some(self.min);
+        };
+
+        self.curr
+    }
+}
+
+impl WorldChunkCoordPaintersIterator {
+    fn get_next_curr(&self, curr: WorldChunkCoord) -> Option<WorldChunkCoord> {
+        let next_on_row = WorldChunkCoord {
+            cx: curr.cx + 1,
+            cz: curr.cz - 1,
+        };
+
+        if next_on_row.cz >= self.min.cz && next_on_row.cx < self.max.cx {
+            // in bounds on current row
+            Some(next_on_row)
+        } else {
             let curr_row = curr.cx - self.min.cx + curr.cz - self.min.cz;
             let last_row = self.max.cx - 1 - self.min.cx + self.max.cz - 1 - self.min.cz;
-            let last_ascending_row = self.max.cz - self.min.cz; // along x origin so ignore
+            let last_ascending_row = self.max.cz - self.min.cz - 1; // along x origin so ignore
 
             if curr_row >= last_row {
                 // if we're past the maximum value on the final row, we're done
@@ -133,19 +151,16 @@ impl Iterator for WorldChunkCoordPaintersIterator {
             if curr_row < last_ascending_row {
                 let first_next_row = WorldChunkCoord {
                     cz: self.min.cz + curr_row + 1, // starts at row 0, so +1 -> row 1
-                    cx: self.min.cx
+                    cx: self.min.cx,
                 };
                 Some(first_next_row)
             } else {
                 let first_next_row = WorldChunkCoord {
-                    cz: self.max.cz,
-                    cx: self.min.cx + (curr_row - last_ascending_row + 1)
+                    cz: self.max.cz - 1, // -1 because max is exclusive
+                    cx: self.min.cx + (curr_row - last_ascending_row + 1),
                 };
                 Some(first_next_row)
             }
-        } else {
-            self.curr = Some(self.min);
-            self.curr
         }
     }
 }
@@ -155,5 +170,56 @@ impl PaintersRange for WorldChunkCoord {
 
     fn painters_range_to(&self, other: &Self) -> Self::Iter {
         Self::painters_range_to(*self, other)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunk_coord_painters_iterator_0_wide() {
+        let min = WorldChunkCoord { cx: 0, cz: 0 };
+        let max = WorldChunkCoord { cx: 0, cz: 0 };
+        let iter = min.painters_range_to(&max);
+        let x: Vec<WorldChunkCoord> = iter.collect();
+
+        assert_eq!(x, vec![WorldChunkCoord { cx: 0, cz: 0 }])
+    }
+
+    #[test]
+    fn chunk_coord_painters_iterator_0_wide_negative() {
+        let min = WorldChunkCoord { cx: -5, cz: -5 };
+        let max = WorldChunkCoord { cx: -5, cz: -5 };
+        let iter = min.painters_range_to(&max);
+        let x: Vec<WorldChunkCoord> = iter.collect();
+
+        assert_eq!(x, vec![WorldChunkCoord { cx: -5, cz: -5 }])
+    }
+
+    #[test]
+    fn chunk_coord_painters_iterator_non_rect() {
+        let min = WorldChunkCoord { cx: -2, cz: -1 };
+        let max = WorldChunkCoord { cx: 1, cz: 1 };
+        let iter = min.painters_range_to(&max);
+        let x: Vec<WorldChunkCoord> = iter.take(20).collect();
+
+        assert_eq!(
+            x,
+            vec![
+                WorldChunkCoord { cx: -2, cz: -1 },
+                WorldChunkCoord { cx: -2, cz: 0 },
+                WorldChunkCoord { cx: -1, cz: -1 },
+                WorldChunkCoord { cx: -2, cz: 1 },
+                WorldChunkCoord { cx: -1, cz: 0 },
+                WorldChunkCoord { cx: 0, cz: -1 },
+                WorldChunkCoord { cx: -1, cz: 1 },
+                WorldChunkCoord { cx: 0, cz: 0 },
+                WorldChunkCoord { cx: 1, cz: -1 },
+                WorldChunkCoord { cx: 0, cz: 1 },
+                WorldChunkCoord { cx: 1, cz: 0 },
+                WorldChunkCoord { cx: 1, cz: 1 },
+            ]
+        )
     }
 }
