@@ -54,16 +54,25 @@ impl BlockStates {
         result
     }
 
-    fn block_at(&mut self, index: usize) -> Option<&PaletteEntry> {
+    fn block_at(&self, index: usize) -> Option<&PaletteEntry> {
         match &self.data {
-            None => return self.palette.first(),
-            Some(data) => {
-                if self.unpacked_data.is_none() {
-                    self.unpacked_data = Some(Self::unpack_blockstates(data));
+            None => self.palette.first(),
+            Some(_) => {
+                if let Some(unpacked) = &self.unpacked_data {
+                    let palette_index = unpacked[index];
+                    self.palette.get(palette_index as usize)
+                } else {
+                    // Should be ensured unpacked before calling
+                    None
                 }
+            }
+        }
+    }
 
-                let palette_index = self.unpacked_data.as_ref().unwrap()[index];
-                self.palette.get(palette_index as usize)
+    pub fn ensure_unpacked(&mut self) {
+        if let Some(data) = &self.data {
+            if self.unpacked_data.is_none() {
+                self.unpacked_data = Some(Self::unpack_blockstates(data));
             }
         }
     }
@@ -77,8 +86,14 @@ pub struct PaletteEntry {
 }
 
 impl Section {
-    pub fn block_at(&mut self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
-        match &mut self.block_states {
+    pub fn ensure_unpacked(&mut self) {
+        if let Some(states) = &mut self.block_states {
+            states.ensure_unpacked();
+        }
+    }
+
+    pub fn block_at(&self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
+        match &self.block_states {
             None => return None,
             Some(states) => states.block_at(coords.index()),
         }

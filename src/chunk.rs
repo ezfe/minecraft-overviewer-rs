@@ -32,4 +32,10 @@ impl Chunk {
             .iter()
             .find(|section| section.y == section_index);
     }
+
+    pub fn ensure_unpacked(&mut self) {
+        for section in &mut self.sections {
+            section.ensure_unpacked();
+        }
+    }
 }
