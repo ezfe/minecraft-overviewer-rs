@@ -329,6 +329,7 @@ pub fn render_world(
             render_chunk(
                 cache,
                 |coords| store.get_block_at(coords),
+                |coords| store.get_block_light_at(coords),
                 *chunk_coord,
                 min_y,
                 max_y,
@@ -369,15 +370,17 @@ struct ChunkRenderResult {
     img: RgbaImage,
 }
 
-fn render_chunk<F>(
+fn render_chunk<F, FL>(
     cache: &AssetCache,
     mut get_block: F,
+    mut get_block_light: FL,
     chunk_coord: WorldChunkCoord,
     min_y: isize,
     max_y: isize,
 ) -> ChunkRenderResult
 where
     F: FnMut(&WorldBlockCoord) -> Option<String>,
+    FL: FnMut(&WorldBlockCoord) -> Option<u8>,
 {
     // Calculate world coordinate ranges
     let world_min = chunk_coord.world_block_coord_min(min_y);
@@ -394,7 +397,17 @@ where
     for block_coord in world_min.painters_range_to(&world_max) {
         if let Some(block_name) = get_block(&block_coord) {
             if !is_air_block(&block_name) {
-                let sprite = get_block_sprite(cache, &block_name);
+                let mut sprite = get_block_sprite(cache, &block_name);
+
+                let mut factor = 0.0;
+                let block_light_a = get_block_light(&block_coord.above_pos_y()).unwrap_or(0);
+                let block_light_b = get_block_light(&block_coord.east_pos_x()).unwrap_or(0);
+                let block_light_c = get_block_light(&block_coord.south_pos_z()).unwrap_or(0);
+                let avg = (block_light_a + block_light_b + block_light_c) as f64 / 3.0;
+                factor = avg / 16.0;
+                factor *= 0.7;
+                factor += 0.3;
+                sprite = darken_image(&sprite, factor);
 
                 let screen_pos = img_coords(width, world_min, world_max, block_coord);
                 overlay(&mut img, &sprite, screen_pos.0 as i64, screen_pos.1 as i64);

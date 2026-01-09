@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use fastnbt::LongArray;
+use fastnbt::{ByteArray, LongArray};
 use serde::Deserialize;
 
 use crate::coords::chunk_local_block_coord::ChunkLocalBlockCoord;
@@ -11,8 +11,8 @@ pub struct Section {
     pub y: i8,
     #[serde(rename = "block_states")]
     pub block_states: Option<BlockStates>,
-    // pub block_light: Option<ByteArray>,
-    // pub sky_light: Option<ByteArray>,
+    pub block_light: Option<ByteArray>,
+    pub sky_light: Option<ByteArray>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -94,8 +94,21 @@ impl Section {
 
     pub fn block_at(&self, coords: ChunkLocalBlockCoord) -> Option<&PaletteEntry> {
         match &self.block_states {
-            None => return None,
+            None => None,
             Some(states) => states.block_at(coords.index()),
+        }
+    }
+
+    pub fn block_light_at(&self, coords: ChunkLocalBlockCoord) -> Option<u8> {
+        if let Some(block_light) = &self.block_light {
+            let index = coords.index();
+            let byte = block_light.get(index / 2)?;
+            let byte = byte.clone() as u8;
+            let shift: i8 = if index % 2 == 0 { 4 } else { 0 };
+            let nibble = (byte >> shift) & 0x0F;
+            Some(nibble)
+        } else {
+            None
         }
     }
 }

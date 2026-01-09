@@ -5,6 +5,7 @@ use std::{
     path::PathBuf,
 };
 
+use crate::coords::world_block_coord::WorldBlockCoord;
 use crate::{
     asset_cache::AssetCache, chunk_store::ChunkStore, coords::world_chunk_coord::WorldChunkCoord,
 };
@@ -25,7 +26,7 @@ fn main() -> Result<()> {
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let r = 20;
+    let r = 2;
     let chunk_min = WorldChunkCoord {
         cx: 0 - r,
         cz: 0 - r,

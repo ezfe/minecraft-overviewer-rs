@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::section::Section;
 use crate::{
     chunk::Chunk,
     coords::{world_block_coord::WorldBlockCoord, world_chunk_coord::WorldChunkCoord},
@@ -25,18 +26,27 @@ impl ChunkStore {
         self.chunks.get(&coord)
     }
 
+    fn get_section(&self, block_coords: &WorldBlockCoord) -> Option<&Section> {
+        let chunk = self.get(block_coords.chunk_coord())?;
+        Some(
+            chunk
+                .sections
+                .iter()
+                .find(|s| s.y == block_coords.chunk_y_section())?,
+        )
+    }
+
     /// Get block at world coordinates
     pub fn get_block_at(&self, block_coords: &WorldBlockCoord) -> Option<String> {
-        let chunk = self.get(block_coords.chunk_coord())?;
-
-        let local_coords = block_coords.chunk_local_coord();
-
-        let section = chunk
-            .sections
-            .iter()
-            .find(|s| s.y == block_coords.chunk_y_section())?;
-
+        let local_coords = block_coords.section_local_coord();
+        let section = self.get_section(block_coords)?;
         section.block_at(local_coords).map(|p| p.name.clone())
+    }
+
+    pub fn get_block_light_at(&self, block_coords: &WorldBlockCoord) -> Option<u8> {
+        let local_coords = block_coords.section_local_coord();
+        let section = self.get_section(block_coords)?;
+        section.block_light_at(local_coords)
     }
 
     /// Get the Y range across all loaded chunks

@@ -20,11 +20,35 @@ impl WorldBlockCoord {
         }
     }
 
-    pub fn chunk_local_coord(&self) -> ChunkLocalBlockCoord {
+    pub fn section_local_coord(&self) -> ChunkLocalBlockCoord {
         ChunkLocalBlockCoord {
             lx: self.x.rem_euclid(16) as usize,
             ly: self.y.rem_euclid(16) as usize,
             lz: self.z.rem_euclid(16) as usize,
+        }
+    }
+
+    pub fn above_pos_y(&self) -> WorldBlockCoord {
+        WorldBlockCoord {
+            x: self.x,
+            y: self.y + 1,
+            z: self.z,
+        }
+    }
+
+    pub fn south_pos_z(&self) -> WorldBlockCoord {
+        WorldBlockCoord {
+            x: self.x,
+            y: self.y,
+            z: self.z + 1,
+        }
+    }
+
+    pub fn east_pos_x(&self) -> WorldBlockCoord {
+        WorldBlockCoord {
+            x: self.x + 1,
+            y: self.y,
+            z: self.z,
         }
     }
 

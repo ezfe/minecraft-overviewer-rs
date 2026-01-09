@@ -10,6 +10,7 @@
       "minecraft:old_growth_birch_forest": "2025-12-28 21:52:16 -0500",
       "minecraft:forest": "2025-12-20 17:50:45 -0500",
       "minecraft:river": "2026-01-06 19:22:14 -0500",
+      "minecraft:birch_forest": "2026-01-09 14:09:31 -0500",
       "minecraft:dripstone_caves": "2025-12-21 23:02:02 -0500"
     },
     "done": false
@@ -92,12 +93,6 @@
     },
     "done": true
   },
-  "minecraft:recipes/decorations/red_glazed_terracotta": {
-    "criteria": {
-      "has_red_terracotta": "2026-01-06 19:23:17 -0500"
-    },
-    "done": true
-  },
   "minecraft:recipes/building_blocks/red_terracotta": {
     "criteria": {
       "has_terracotta": "2026-01-06 19:22:31 -0500"
@@ -140,12 +135,6 @@
     },
     "done": true
   },
-  "minecraft:recipes/decorations/blue_glazed_terracotta": {
-    "criteria": {
-      "has_blue_terracotta": "2026-01-06 19:24:02 -0500"
-    },
-    "done": true
-  },
   "minecraft:recipes/building_blocks/white_terracotta": {
     "criteria": {
       "has_terracotta": "2026-01-06 19:22:31 -0500"
@@ -170,12 +159,6 @@
     },
     "done": true
   },
-  "minecraft:recipes/decorations/black_glazed_terracotta": {
-    "criteria": {
-      "has_black_terracotta": "2026-01-06 19:23:27 -0500"
-    },
-    "done": true
-  },
   "minecraft:recipes/building_blocks/gray_terracotta": {
     "criteria": {
       "has_terracotta": "2026-01-06 19:22:31 -0500"
@@ -191,6 +174,30 @@
   "minecraft:recipes/building_blocks/brown_terracotta": {
     "criteria": {
       "has_terracotta": "2026-01-06 19:22:31 -0500"
+    },
+    "done": true
+  },
+  "minecraft:recipes/decorations/red_glazed_terracotta": {
+    "criteria": {
+      "has_red_terracotta": "2026-01-06 19:23:17 -0500"
+    },
+    "done": true
+  },
+  "minecraft:recipes/decorations/black_glazed_terracotta": {
+    "criteria": {
+      "has_black_terracotta": "2026-01-06 19:23:27 -0500"
+    },
+    "done": true
+  },
+  "minecraft:recipes/decorations/blue_glazed_terracotta": {
+    "criteria": {
+      "has_blue_terracotta": "2026-01-06 19:24:02 -0500"
+    },
+    "done": true
+  },
+  "minecraft:recipes/redstone/redstone_lamp": {
+    "criteria": {
+      "has_glowstone": "2026-01-09 11:10:47 -0500"
     },
     "done": true
   },

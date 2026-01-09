@@ -1,9 +1,23 @@
 {
   "stats": {
-    "minecraft:dropped": {
-      "minecraft:black_terracotta": 2
+    "minecraft:custom": {
+      "minecraft:sprint_one_cm": 1433,
+      "minecraft:time_since_rest": 87401,
+      "minecraft:walk_one_cm": 4964,
+      "minecraft:total_world_time": 117500,
+      "minecraft:leave_game": 8,
+      "minecraft:fly_one_cm": 76437,
+      "minecraft:crouch_one_cm": 138,
+      "minecraft:sneak_time": 572,
+      "minecraft:play_time": 87401,
+      "minecraft:jump": 39,
+      "minecraft:time_since_death": 87401,
+      "minecraft:drop": 2
     },
     "minecraft:picked_up": {
+      "minecraft:black_terracotta": 2
+    },
+    "minecraft:dropped": {
       "minecraft:black_terracotta": 2
     },
     "minecraft:used": {
@@ -11,25 +25,13 @@
       "minecraft:white_concrete": 26,
       "minecraft:lime_concrete": 12,
       "minecraft:diorite": 1,
+      "minecraft:glowstone": 12,
       "minecraft:black_terracotta": 61,
+      "minecraft:torch": 5,
       "minecraft:blue_concrete": 12,
       "minecraft:terracotta": 10,
       "minecraft:blue_terracotta": 3,
       "minecraft:red_terracotta": 13
-    },
-    "minecraft:custom": {
-      "minecraft:sprint_one_cm": 696,
-      "minecraft:time_since_rest": 76414,
-      "minecraft:walk_one_cm": 3725,
-      "minecraft:total_world_time": 100528,
-      "minecraft:leave_game": 5,
-      "minecraft:fly_one_cm": 40345,
-      "minecraft:crouch_one_cm": 27,
-      "minecraft:sneak_time": 389,
-      "minecraft:play_time": 76414,
-      "minecraft:jump": 15,
-      "minecraft:time_since_death": 76414,
-      "minecraft:drop": 2
     }
   },
   "DataVersion": 4671
