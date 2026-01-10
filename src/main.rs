@@ -1,5 +1,6 @@
 use crate::coords::world_block_coord::WorldBlockCoord;
 use crate::region::read_chunk;
+use crate::render::mode::RenderMode;
 use crate::{
     asset_cache::AssetCache, chunk_store::ChunkStore, coords::world_chunk_coord::WorldChunkCoord,
 };
@@ -101,6 +102,7 @@ fn main() -> Result<()> {
     let img = render_world(
         &mut asset_cache,
         &mut store,
+        RenderMode { night: false },
         &chunk_min,
         &chunk_max,
         min_y,

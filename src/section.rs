@@ -99,16 +99,23 @@ impl Section {
         }
     }
 
+    fn light_index(coords: ChunkLocalBlockCoord, light_data: &ByteArray) -> u8 {
+        let index = coords.index();
+        let byte = light_data[index / 2];
+        let byte = byte.clone() as u8;
+        let shift: i8 = if index % 2 == 0 { 0 } else { 4 };
+        (byte >> shift) & 0x0F
+    }
+
     pub fn block_light_at(&self, coords: ChunkLocalBlockCoord) -> Option<u8> {
-        if let Some(block_light) = &self.block_light {
-            let index = coords.index();
-            let byte = block_light.get(index / 2)?;
-            let byte = byte.clone() as u8;
-            let shift: i8 = if index % 2 == 0 { 0 } else { 4 };
-            let nibble = (byte >> shift) & 0x0F;
-            Some(nibble)
-        } else {
-            None
-        }
+        self.block_light
+            .as_ref()
+            .map(|light| Self::light_index(coords, light))
+    }
+
+    pub fn sky_light_at(&self, coords: ChunkLocalBlockCoord) -> Option<u8> {
+        self.sky_light
+            .as_ref()
+            .map(|light| Self::light_index(coords, light))
     }
 }

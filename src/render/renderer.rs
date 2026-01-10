@@ -1,4 +1,5 @@
 use crate::light_data::LightData;
+use crate::render::mode::RenderMode;
 use crate::render::render_cube::{CubeSpritePlan, render_block_3d};
 use crate::{
     asset_cache::AssetCache,
@@ -55,6 +56,7 @@ fn create_block_sprite(cache: &AssetCache, name: &str, light_data: LightData) ->
 pub fn render_world(
     cache: &AssetCache,
     store: &ChunkStore,
+    mode: RenderMode,
     chunk_min: &WorldChunkCoord,
     chunk_max: &WorldChunkCoord,
     min_y: isize,
@@ -96,7 +98,14 @@ pub fn render_world(
             render_chunk(
                 cache,
                 |coords| store.get_block_at(coords),
-                |coords| store.get_block_light_at(coords),
+                |coords| {
+                    if mode.night {
+                        store.get_block_light_at(coords)
+                    } else {
+                        let block_light = store.get_block_light_at(coords).unwrap_or(0);
+                        Some(store.get_sky_light_at(coords).max(block_light))
+                    }
+                },
                 *chunk_coord,
                 min_y,
                 max_y,
