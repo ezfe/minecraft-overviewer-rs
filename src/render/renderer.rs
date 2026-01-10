@@ -2,7 +2,7 @@ use crate::light_data::LightData;
 use crate::render::render_cube::{CubeSpritePlan, render_block_3d};
 use crate::{
     asset_cache::AssetCache,
-    blocks::{is_air_block, is_complex_geometry},
+    blocks::is_air_block,
     chunk_store::ChunkStore,
     coords::{
         constants::MC_CHUNK_SIZE, world_block_coord::WorldBlockCoord,
@@ -23,16 +23,12 @@ pub fn get_block_sprite(cache: &AssetCache, block_name: &str, light_data: LightD
 }
 
 /// Translate a palette block name into 3 texture names
-fn plan_block_sprite(cache: &AssetCache, block_name: &str) -> Option<CubeSpritePlan> {
+fn plan_block_sprite(block_name: &str) -> Option<CubeSpritePlan> {
     let name = block_name.strip_prefix("minecraft:").unwrap_or(block_name);
 
     // TODO: Cache block sprite plans?
 
     if name == "air" || name == "cave_air" || name == "void_air" {
-        return None;
-    }
-
-    if is_complex_geometry(name) {
         return None;
     }
 
@@ -45,7 +41,7 @@ fn plan_block_sprite(cache: &AssetCache, block_name: &str) -> Option<CubeSpriteP
 
 /// Create a block sprite from a block name
 fn create_block_sprite(cache: &AssetCache, name: &str, light_data: LightData) -> RgbaImage {
-    let cube_plan = plan_block_sprite(cache, name);
+    let cube_plan = plan_block_sprite(name);
 
     match cube_plan {
         None => RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE),

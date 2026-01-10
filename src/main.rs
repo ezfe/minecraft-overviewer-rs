@@ -83,12 +83,6 @@ fn main() -> Result<()> {
 
     println!("Loaded {} chunks total", store.chunks.len());
 
-    let block_name = store.get_block_at(&WorldBlockCoord { x: 9, y: 102, z: 8 });
-    println!("{:?}", block_name);
-
-    let llevel = store.get_block_light_at(&WorldBlockCoord { x: 8, y: 102, z: 8 });
-    println!("{:?}", llevel);
-
     if store.chunks.is_empty() {
         println!("No chunks loaded, exiting");
         return Ok(());

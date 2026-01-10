@@ -44,6 +44,7 @@ impl AssetCache {
             cache.insert(texture_name.to_string(), rgba.clone());
             Some(rgba)
         } else {
+            println!("texture {} not found", texture_name);
             None
         }
     }

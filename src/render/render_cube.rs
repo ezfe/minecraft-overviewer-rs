@@ -4,13 +4,75 @@ use crate::light_data::LightData;
 use crate::render::renderer::SPRITE_SIZE;
 use crate::render::transforms::{BlockSpriteSide, transform_side, transform_top};
 use crate::utils::darken_image;
-use image::imageops::overlay;
+use fastnbt::stream::Name;
+use image::imageops::{crop_imm, overlay};
 use image::{Rgba, RgbaImage};
 
-fn load_face(cache: &AssetCache, face: BlockFace, name: String) -> RgbaImage {
+fn name_top_side(name: String, face: &BlockFace) -> String {
+    match face {
+        BlockFace::Top => format!("{}_top", name),
+        BlockFace::South | BlockFace::East => format!("{}_side", name),
+    }
+}
+
+fn load_face(cache: &AssetCache, face: BlockFace, mut name: String) -> RgbaImage {
+    if name.starts_with("waxed_") {
+        name = name.replace("waxed_", "");
+    }
+
+    let search_name = match name.as_str() {
+        "lava" => "lava_still".to_string(),
+        "water" => "water_still".to_string(),
+        "grass_block" => match face {
+            BlockFace::Top => "grass_block_top".to_string(),
+            BlockFace::South | BlockFace::East => "grass_block_side".to_string(),
+        },
+        "dirt_path" => match face {
+            BlockFace::Top => "dirt_path_top".to_string(),
+            BlockFace::South | BlockFace::East => "dirt_path_side".to_string(),
+        },
+        "snow_block" => "snow".to_string(),
+        "stripped_oak_wood" => match face {
+            BlockFace::Top => "stripped_oak_log_top".to_string(),
+            BlockFace::South | BlockFace::East => "stripped_oak_log".to_string(),
+        },
+        "vault" => match face {
+            BlockFace::Top => "vault_top".to_string(),
+            BlockFace::South | BlockFace::East => "vault_front_off".to_string(),
+        },
+        "lilac" => "lilac_top".to_string(), // TODO block states
+        "rose_bush" => "rose_bush_bottom".to_string(), // TODO flowers
+        "peony" => "peony_top".to_string(),
+        "tall_seagrass" => "tall_seagrass_bottom".to_string(),
+        "glass_pane" => "glass".to_string(), // TODO
+        "hopper" => match face {
+            BlockFace::Top => "hopper_top".to_string(),
+            BlockFace::South | BlockFace::East => "hopper_outside".to_string(),
+        },
+        "bell" | "cauldron" | "stonecutter" | "composter" | "loom" | "hay_block" | "pumpkin"
+        | "bee_nest" | "sculk_catalyst" | "sculk_sensor" | "sculk_shrieker" | "barrel"
+        | "bone_block" => name_top_side(name, &face),
+        "oak_door" => "oak_door_top".to_string(), // TODO
+        "cobblestone_stairs" | "cobblestone_wall" => "cobblestone".to_string(), // TODO stairs
+        "oak_stairs" | "oak_slab" | "oak_fence_gate" | "oak_pressure_plate" | "oak_button"
+        | "oak_fence" => "oak_planks".to_string(), // TODO stairs
+        "stone_brick_stairs" | "stone_brick_slab" => "stone_bricks".to_string(), // TODO stairs
+        "mossy_stone_brick_stairs" | "mossy_stone_brick_slab" => "mossy_stone_bricks".to_string(), // TODO stairs
+        "oxidized_cut_copper_slab" | "oxidized_cut_copper_stairs" => {
+            "oxidized_cut_copper".to_string()
+        }
+        "oxidized_copper_door" => "oxidized_copper_door_top".to_string(),
+        "wheat" => "wheat_stage7".to_string(), // TODO block states
+        "carrots" => "carrots_stage3".to_string(), // TODO block states
+        "beetroots" => "beetroots_stage3".to_string(), // TODO block states
+        "potatoes" => "potatoes_stage3".to_string(),
+        "dispenser" => "dispenser_front".to_string(),
+        _ => name,
+    };
+
     let key = BlockPartKey {
-        face: face.clone(), // TODO
-        name: name.clone(), // TODO
+        face: face.clone(),        // TODO
+        name: search_name.clone(), // TODO
     };
     {
         let block_part_cache = cache.block_part_cache.read().unwrap();
@@ -19,9 +81,13 @@ fn load_face(cache: &AssetCache, face: BlockFace, name: String) -> RgbaImage {
         }
     }
 
-    let texture_img = cache
-        .load_texture(name.as_str())
+    let mut texture_img = cache
+        .load_texture(search_name.as_str())
         .unwrap_or(create_missing_block_texture());
+
+    if texture_img.width() > 16 || texture_img.height() > 16 {
+        texture_img = crop_imm(&texture_img, 0, 0, 16, 16).to_image();
+    }
 
     let img = match face {
         BlockFace::East => transform_side(&texture_img, BlockSpriteSide::SideRight),
