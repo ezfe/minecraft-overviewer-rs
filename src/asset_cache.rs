@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 use crate::coords::block_face::BlockFace;
+use crate::light_data::LightData;
 use image::{RgbaImage, imageops};
 
 #[derive(Hash, Eq, PartialEq)]
@@ -10,9 +11,17 @@ pub struct BlockPartKey {
     pub name: String,
 }
 
+#[derive(Hash, Eq, PartialEq)]
+pub struct BlockSpriteKey {
+    pub light: LightData,
+    // pub light: u8,
+    pub name: String,
+}
+
 pub struct AssetCache {
     pub texture_cache: RwLock<HashMap<String, RgbaImage>>,
     pub block_part_cache: RwLock<HashMap<BlockPartKey, RgbaImage>>,
+    pub block_sprite_cache: RwLock<HashMap<BlockSpriteKey, RgbaImage>>,
     pub assets_path: String,
 }
 
@@ -21,6 +30,7 @@ impl AssetCache {
         Self {
             texture_cache: RwLock::new(HashMap::new()),
             block_part_cache: RwLock::new(HashMap::new()),
+            block_sprite_cache: RwLock::new(HashMap::new()),
             assets_path: assets_path.to_string(),
         }
     }

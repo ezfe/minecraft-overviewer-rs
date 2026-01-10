@@ -46,7 +46,7 @@ fn create_block_sprite(cache: &AssetCache, name: &str, light_data: LightData) ->
 
     match cube_plan {
         None => RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE),
-        Some(cube_plan) => render_block_3d(cache, cube_plan, light_data),
+        Some(cube_plan) => render_block_3d(cache, name, cube_plan, light_data),
     }
 }
 

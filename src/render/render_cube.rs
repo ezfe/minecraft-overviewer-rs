@@ -1,4 +1,4 @@
-use crate::asset_cache::{AssetCache, BlockPartKey};
+use crate::asset_cache::{AssetCache, BlockPartKey, BlockSpriteKey};
 use crate::coords::block_face::BlockFace;
 use crate::light_data::LightData;
 use crate::render::renderer::SPRITE_SIZE;
@@ -105,9 +105,23 @@ fn load_face(cache: &AssetCache, face: BlockFace, mut name: String) -> RgbaImage
 /// Returns a 24x24 image
 pub fn render_block_3d(
     cache: &AssetCache,
+    name: &str,
     plan: CubeSpritePlan,
     light_data: LightData,
 ) -> RgbaImage {
+    // cache read
+    let block_sprite_key = BlockSpriteKey {
+        light: light_data.clone(),
+        name: name.to_string(),
+    };
+    {
+        let cache = cache.block_sprite_cache.read().unwrap();
+        if let Some(img) = cache.get(&block_sprite_key) {
+            return img.clone();
+        }
+    }
+    // end cache read
+
     let mut img = RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE);
 
     // Read full-brightness block parts
@@ -123,6 +137,9 @@ pub fn render_block_3d(
     overlay(&mut img, &top_transformed, 0, 0);
     overlay(&mut img, &side_left, 0, 6);
     overlay(&mut img, &side_right, 12, 6);
+
+    let mut cache = cache.block_sprite_cache.write().unwrap();
+    cache.insert(block_sprite_key, img.clone());
 
     img
 }

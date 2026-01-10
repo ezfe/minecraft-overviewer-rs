@@ -1,5 +1,6 @@
 use crate::coords::block_face::BlockFace;
 
+#[derive(Hash, Eq, PartialEq, Clone)]
 pub struct LightData {
     pub light_east: u8,
     pub light_south: u8,
