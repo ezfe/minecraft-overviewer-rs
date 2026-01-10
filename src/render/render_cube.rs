@@ -4,7 +4,6 @@ use crate::light_data::LightData;
 use crate::render::renderer::SPRITE_SIZE;
 use crate::render::transforms::{BlockSpriteSide, transform_side, transform_top};
 use crate::utils::darken_image;
-use fastnbt::stream::Name;
 use image::imageops::{crop_imm, overlay};
 use image::{Rgba, RgbaImage};
 

@@ -55,8 +55,18 @@ impl WorldBlockCoord {
     pub fn chunk_y_section(&self) -> i8 {
         self.y.div_euclid(16) as i8
     }
+}
 
-    pub fn painters_range_to(self, other: &WorldBlockCoord) -> WorldBlockCoordIterator {
+impl fmt::Display for WorldBlockCoord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{},{},{}", self.x, self.y, self.z)
+    }
+}
+
+impl PaintersRange for WorldBlockCoord {
+    type Iter = WorldBlockCoordIterator;
+
+    fn painters_range_to(&self, other: &Self) -> Self::Iter {
         let min_coord = WorldBlockCoord {
             x: self.x.min(other.x),
             y: self.y.min(other.y),
@@ -76,20 +86,6 @@ impl WorldBlockCoord {
             min: min_coord,
             max: max_coord,
         }
-    }
-}
-
-impl fmt::Display for WorldBlockCoord {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{},{},{}", self.x, self.y, self.z)
-    }
-}
-
-impl PaintersRange for WorldBlockCoord {
-    type Iter = WorldBlockCoordIterator;
-
-    fn painters_range_to(&self, other: &Self) -> Self::Iter {
-        Self::painters_range_to(*self, other)
     }
 }
 

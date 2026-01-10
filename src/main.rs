@@ -1,4 +1,3 @@
-use crate::coords::world_block_coord::WorldBlockCoord;
 use crate::region::read_chunk;
 use crate::render::mode::RenderMode;
 use crate::{

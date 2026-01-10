@@ -35,24 +35,6 @@ impl WorldChunkCoord {
         }
     }
 
-    pub fn painters_range_to(self, other: &WorldChunkCoord) -> WorldChunkCoordPaintersIterator {
-        let min_coord = WorldChunkCoord {
-            cx: self.cx.min(other.cx),
-            cz: self.cz.min(other.cz),
-        };
-        let max_coord = WorldChunkCoord {
-            cx: self.cx.max(other.cx) + 1,
-            cz: self.cz.max(other.cz) + 1,
-        };
-
-        WorldChunkCoordPaintersIterator {
-            exhausted: false,
-            curr: None,
-            min: min_coord,
-            max: max_coord,
-        }
-    }
-
     pub fn world_block_coord_min(&self, min_y: isize) -> WorldBlockCoord {
         WorldBlockCoord {
             x: self.cx * MC_CHUNK_SIZE,
@@ -169,7 +151,21 @@ impl PaintersRange for WorldChunkCoord {
     type Iter = WorldChunkCoordPaintersIterator;
 
     fn painters_range_to(&self, other: &Self) -> Self::Iter {
-        Self::painters_range_to(*self, other)
+        let min_coord = WorldChunkCoord {
+            cx: self.cx.min(other.cx),
+            cz: self.cz.min(other.cz),
+        };
+        let max_coord = WorldChunkCoord {
+            cx: self.cx.max(other.cx) + 1,
+            cz: self.cz.max(other.cz) + 1,
+        };
+
+        WorldChunkCoordPaintersIterator {
+            exhausted: false,
+            curr: None,
+            min: min_coord,
+            max: max_coord,
+        }
     }
 }
 

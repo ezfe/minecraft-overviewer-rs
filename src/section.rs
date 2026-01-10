@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use fastnbt::{ByteArray, LongArray};
 use serde::Deserialize;
 
@@ -82,7 +80,7 @@ impl BlockStates {
 #[serde(rename_all = "PascalCase")]
 pub struct PaletteEntry {
     pub name: String,
-    pub properties: Option<HashMap<String, String>>,
+    // pub properties: Option<HashMap<String, String>>,
 }
 
 impl Section {

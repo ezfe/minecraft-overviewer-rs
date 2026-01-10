@@ -6,7 +6,7 @@ use crate::{
     blocks::is_air_block,
     chunk_store::ChunkStore,
     coords::{
-        constants::MC_CHUNK_SIZE, world_block_coord::WorldBlockCoord,
+        constants::MC_CHUNK_SIZE, painters_range::PaintersRange, world_block_coord::WorldBlockCoord,
         world_chunk_coord::WorldChunkCoord,
     },
 };
@@ -149,7 +149,7 @@ struct ChunkRenderResult {
 fn render_chunk<F, FL>(
     cache: &AssetCache,
     mut get_block: F,
-    mut get_block_light: FL,
+    mut get_light: FL,
     chunk_coord: WorldChunkCoord,
     min_y: isize,
     max_y: isize,
@@ -174,9 +174,9 @@ where
         if let Some(block_name) = get_block(&block_coord) {
             if !is_air_block(&block_name) {
                 let light_info = LightData {
-                    light_top: get_block_light(&block_coord.top_pos_y()).unwrap_or(0),
-                    light_east: get_block_light(&block_coord.east_pos_x()).unwrap_or(0),
-                    light_south: get_block_light(&block_coord.south_pos_z()).unwrap_or(0),
+                    light_top: get_light(&block_coord.top_pos_y()).unwrap_or(0),
+                    light_east: get_light(&block_coord.east_pos_x()).unwrap_or(0),
+                    light_south: get_light(&block_coord.south_pos_z()).unwrap_or(0),
                 };
 
                 let sprite = get_block_sprite(cache, &block_name, light_info);
