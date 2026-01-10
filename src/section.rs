@@ -104,7 +104,7 @@ impl Section {
             let index = coords.index();
             let byte = block_light.get(index / 2)?;
             let byte = byte.clone() as u8;
-            let shift: i8 = if index % 2 == 0 { 4 } else { 0 };
+            let shift: i8 = if index % 2 == 0 { 0 } else { 4 };
             let nibble = (byte >> shift) & 0x0F;
             Some(nibble)
         } else {

@@ -28,7 +28,7 @@ impl WorldBlockCoord {
         }
     }
 
-    pub fn above_pos_y(&self) -> WorldBlockCoord {
+    pub fn top_pos_y(&self) -> WorldBlockCoord {
         WorldBlockCoord {
             x: self.x,
             y: self.y + 1,

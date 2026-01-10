@@ -1,3 +1,9 @@
+use crate::coords::world_block_coord::WorldBlockCoord;
+use crate::region::read_chunk;
+use crate::{
+    asset_cache::AssetCache, chunk_store::ChunkStore, coords::world_chunk_coord::WorldChunkCoord,
+};
+use render::renderer::render_world;
 use std::{
     ffi::OsStr,
     fs::{self},
@@ -5,19 +11,14 @@ use std::{
     path::PathBuf,
 };
 
-use crate::coords::world_block_coord::WorldBlockCoord;
-use crate::{
-    asset_cache::AssetCache, chunk_store::ChunkStore, coords::world_chunk_coord::WorldChunkCoord,
-};
-use crate::{region::read_chunk, renderer::render_world};
-
 mod asset_cache;
 mod blocks;
 mod chunk;
 mod chunk_store;
 mod coords;
+mod light_data;
 mod region;
-mod renderer;
+mod render;
 mod section;
 mod utils;
 
@@ -26,7 +27,7 @@ fn main() -> Result<()> {
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let r = 2;
+    let r = 20;
     let chunk_min = WorldChunkCoord {
         cx: 0 - r,
         cz: 0 - r,
@@ -81,6 +82,12 @@ fn main() -> Result<()> {
     }
 
     println!("Loaded {} chunks total", store.chunks.len());
+
+    let block_name = store.get_block_at(&WorldBlockCoord { x: 9, y: 102, z: 8 });
+    println!("{:?}", block_name);
+
+    let llevel = store.get_block_light_at(&WorldBlockCoord { x: 8, y: 102, z: 8 });
+    println!("{:?}", llevel);
 
     if store.chunks.is_empty() {
         println!("No chunks loaded, exiting");
