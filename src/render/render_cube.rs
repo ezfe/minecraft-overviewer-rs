@@ -80,6 +80,8 @@ fn load_face(cache: &AssetCache, face: BlockFace, mut name: String) -> RgbaImage
         }
     }
 
+    let mut block_part_cache = cache.block_part_cache.write().unwrap();
+
     let mut texture_img = cache
         .load_texture(search_name.as_str())
         .unwrap_or(create_missing_block_texture());
@@ -94,7 +96,6 @@ fn load_face(cache: &AssetCache, face: BlockFace, mut name: String) -> RgbaImage
         BlockFace::Top => transform_top(&texture_img),
     };
 
-    let mut block_part_cache = cache.block_part_cache.write().unwrap();
     block_part_cache.insert(key, img.clone());
 
     img
@@ -121,6 +122,9 @@ pub fn render_block_3d(
     }
     // end cache read
 
+    // lock writeable cache
+    let mut block_sprite_cache = cache.block_sprite_cache.write().unwrap();
+
     let mut img = RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE);
 
     // Read full-brightness block parts
@@ -128,6 +132,7 @@ pub fn render_block_3d(
     let side_left = load_face(cache, BlockFace::South, plan.face_south);
     let side_right = load_face(cache, BlockFace::East, plan.face_east);
 
+    // darken block faces
     let top_transformed = darken_image(&top_transformed, light_data.factor(BlockFace::Top));
     let side_left = darken_image(&side_left, light_data.factor(BlockFace::South));
     let side_right = darken_image(&side_right, light_data.factor(BlockFace::East));
@@ -137,8 +142,8 @@ pub fn render_block_3d(
     overlay(&mut img, &side_left, 0, 6);
     overlay(&mut img, &side_right, 12, 6);
 
-    let mut cache = cache.block_sprite_cache.write().unwrap();
-    cache.insert(block_sprite_key, img.clone());
+    // write to cache
+    block_sprite_cache.insert(block_sprite_key, img.clone());
 
     img
 }
