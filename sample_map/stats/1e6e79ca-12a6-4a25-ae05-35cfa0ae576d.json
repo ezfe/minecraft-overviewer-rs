@@ -1,37 +1,42 @@
 {
   "stats": {
     "minecraft:custom": {
-      "minecraft:sprint_one_cm": 1433,
-      "minecraft:time_since_rest": 87401,
-      "minecraft:walk_one_cm": 4964,
-      "minecraft:total_world_time": 117500,
-      "minecraft:leave_game": 8,
-      "minecraft:fly_one_cm": 76437,
-      "minecraft:crouch_one_cm": 138,
-      "minecraft:sneak_time": 572,
-      "minecraft:play_time": 87401,
-      "minecraft:jump": 39,
-      "minecraft:time_since_death": 87401,
-      "minecraft:drop": 2
-    },
-    "minecraft:picked_up": {
-      "minecraft:black_terracotta": 2
-    },
-    "minecraft:dropped": {
-      "minecraft:black_terracotta": 2
+      "minecraft:time_since_rest": 146444,
+      "minecraft:walk_one_cm": 9471,
+      "minecraft:leave_game": 10,
+      "minecraft:play_time": 146444,
+      "minecraft:jump": 55,
+      "minecraft:time_since_death": 146444,
+      "minecraft:drop": 4,
+      "minecraft:sprint_one_cm": 2751,
+      "minecraft:total_world_time": 400066,
+      "minecraft:fly_one_cm": 96414,
+      "minecraft:crouch_one_cm": 633,
+      "minecraft:sneak_time": 865,
+      "minecraft:climb_one_cm": 12
     },
     "minecraft:used": {
-      "minecraft:blue_concrete_powder": 1,
-      "minecraft:white_concrete": 26,
-      "minecraft:lime_concrete": 12,
+      "minecraft:white_concrete": 27,
       "minecraft:diorite": 1,
-      "minecraft:glowstone": 12,
-      "minecraft:black_terracotta": 61,
-      "minecraft:torch": 5,
       "minecraft:blue_concrete": 12,
+      "minecraft:red_terracotta": 13,
+      "minecraft:blue_concrete_powder": 1,
+      "minecraft:glass": 1,
+      "minecraft:ladder": 4,
+      "minecraft:lime_concrete": 12,
+      "minecraft:glowstone": 12,
+      "minecraft:black_terracotta": 70,
+      "minecraft:torch": 10,
       "minecraft:terracotta": 10,
-      "minecraft:blue_terracotta": 3,
-      "minecraft:red_terracotta": 13
+      "minecraft:blue_terracotta": 4
+    },
+    "minecraft:picked_up": {
+      "minecraft:black_terracotta": 2,
+      "minecraft:torch": 2
+    },
+    "minecraft:dropped": {
+      "minecraft:black_terracotta": 2,
+      "minecraft:torch": 2
     }
   },
   "DataVersion": 4671

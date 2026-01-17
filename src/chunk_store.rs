@@ -40,11 +40,18 @@ impl ChunkStore {
         chunk.sections.iter().find(|s| s.y == section.y + 1)
     }
 
-    /// Get block at world coordinates
     pub fn get_block_at(&self, block_coords: &WorldBlockCoord) -> Option<String> {
         let local_coords = block_coords.section_local_coord();
         let section = self.get_section(block_coords)?;
         section.block_at(local_coords).map(|p| p.name.clone())
+    }
+
+    pub fn get_props_at(&self, block_coords: &WorldBlockCoord) -> Option<HashMap<String, String>> {
+        let local_coords = block_coords.section_local_coord();
+        let section = self.get_section(block_coords)?;
+        section
+            .block_at(local_coords)
+            .and_then(|p| p.properties.clone())
     }
 
     pub fn get_block_light_at(&self, block_coords: &WorldBlockCoord) -> Option<u8> {

@@ -1,53 +1,81 @@
+use crate::coords::block_face::BlockFace;
 use crate::light_data::LightData;
 use crate::render::mode::RenderMode;
 use crate::render::render_cube::{CubeSpritePlan, render_block_3d};
+use crate::render::render_ladder_like::{LadderLikePlan, render_ladder_like};
 use crate::{
     asset_cache::AssetCache,
     blocks::is_air_block,
     chunk_store::ChunkStore,
     coords::{
-        constants::MC_CHUNK_SIZE, painters_range::PaintersRange, world_block_coord::WorldBlockCoord,
-        world_chunk_coord::WorldChunkCoord,
+        constants::MC_CHUNK_SIZE, painters_range::PaintersRange,
+        world_block_coord::WorldBlockCoord, world_chunk_coord::WorldChunkCoord,
     },
 };
 use image::{RgbaImage, imageops::overlay};
 use rayon::prelude::*;
+use std::collections::HashMap;
 
 pub const SPRITE_SIZE: u32 = 24;
 
 /// Get or create a rendered block sprite for a block name
 /// Block name should be like "minecraft:stone" or "minecraft:grass_block"
-pub fn get_block_sprite(cache: &AssetCache, block_name: &str, light_data: LightData) -> RgbaImage {
+pub fn get_block_sprite<FP>(
+    cache: &AssetCache,
+    block_name: &str,
+    light_data: LightData,
+    get_props: FP,
+) -> RgbaImage
+where
+    FP: FnMut() -> Option<HashMap<String, String>>,
+{
     let name = block_name.strip_prefix("minecraft:").unwrap_or(block_name);
-    let sprite = create_block_sprite(cache, name, light_data);
-    sprite
+
+    let plan = plan_block_sprite(name, get_props);
+
+    match plan {
+        SpritePlan::Empty => RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE),
+        SpritePlan::Cube(plan) => render_block_3d(cache, name, plan, light_data),
+        SpritePlan::LadderLike(plan) => render_ladder_like(cache, name, plan, light_data),
+    }
+}
+
+enum SpritePlan {
+    Empty,
+    Cube(CubeSpritePlan),
+    LadderLike(LadderLikePlan),
 }
 
 /// Translate a palette block name into 3 texture names
-fn plan_block_sprite(block_name: &str) -> Option<CubeSpritePlan> {
+fn plan_block_sprite<FP>(block_name: &str, mut get_props: FP) -> SpritePlan
+where
+    FP: FnMut() -> Option<HashMap<String, String>>,
+{
     let name = block_name.strip_prefix("minecraft:").unwrap_or(block_name);
 
-    // TODO: Cache block sprite plans?
-
     if name == "air" || name == "cave_air" || name == "void_air" {
-        return None;
+        return SpritePlan::Empty;
     }
 
-    Some(CubeSpritePlan {
+    if name == "ladder" || name == "vine" {
+        let props = get_props().unwrap_or(HashMap::new());
+        return SpritePlan::LadderLike(LadderLikePlan {
+            face: match props.get("facing").map(|s| s.as_str()) {
+                Some("north") => BlockFace::South,
+                Some("south") => BlockFace::North,
+                Some("east") => BlockFace::West,
+                Some("west") => BlockFace::East,
+                None | Some(_) => panic!("Block {} had unexpected properties {:?}", name, props),
+            },
+            name: name.to_string(),
+        });
+    }
+
+    SpritePlan::Cube(CubeSpritePlan {
         face_east: name.to_string(),
         face_south: name.to_string(),
         face_top: name.to_string(),
     })
-}
-
-/// Create a block sprite from a block name
-fn create_block_sprite(cache: &AssetCache, name: &str, light_data: LightData) -> RgbaImage {
-    let cube_plan = plan_block_sprite(name);
-
-    match cube_plan {
-        None => RgbaImage::new(SPRITE_SIZE, SPRITE_SIZE),
-        Some(cube_plan) => render_block_3d(cache, name, cube_plan, light_data),
-    }
 }
 
 /// Render multiple chunks in a grid
@@ -106,6 +134,7 @@ pub fn render_world(
                         Some(store.get_sky_light_at(coords).max(block_light))
                     }
                 },
+                |coords| store.get_props_at(coords),
                 *chunk_coord,
                 min_y,
                 max_y,
@@ -146,10 +175,11 @@ struct ChunkRenderResult {
     img: RgbaImage,
 }
 
-fn render_chunk<F, FL>(
+fn render_chunk<F, FL, FP>(
     cache: &AssetCache,
     mut get_block: F,
     mut get_light: FL,
+    mut get_props: FP,
     chunk_coord: WorldChunkCoord,
     min_y: isize,
     max_y: isize,
@@ -157,6 +187,7 @@ fn render_chunk<F, FL>(
 where
     F: FnMut(&WorldBlockCoord) -> Option<String>,
     FL: FnMut(&WorldBlockCoord) -> Option<u8>,
+    FP: FnMut(&WorldBlockCoord) -> Option<HashMap<String, String>>,
 {
     // Calculate world coordinate ranges
     let world_min = chunk_coord.world_block_coord_min(min_y);
@@ -174,12 +205,14 @@ where
         if let Some(block_name) = get_block(&block_coord) {
             if !is_air_block(&block_name) {
                 let light_info = LightData {
+                    light_internal: get_light(&block_coord).unwrap_or(0),
                     light_top: get_light(&block_coord.top_pos_y()).unwrap_or(0),
                     light_east: get_light(&block_coord.east_pos_x()).unwrap_or(0),
                     light_south: get_light(&block_coord.south_pos_z()).unwrap_or(0),
                 };
 
-                let sprite = get_block_sprite(cache, &block_name, light_info);
+                let sprite =
+                    get_block_sprite(cache, &block_name, light_info, || get_props(&block_coord));
 
                 let screen_pos = img_coords(width, world_min, world_max, block_coord);
                 overlay(&mut img, &sprite, screen_pos.0 as i64, screen_pos.1 as i64);

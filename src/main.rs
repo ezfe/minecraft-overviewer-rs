@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     const ASSETS: &str = "assets";
 
     // Define the 3x3 chunk grid centered at (0, 0)
-    let r = 20;
+    let r = 4;
     let chunk_min = WorldChunkCoord {
         cx: 0 - r,
         cz: 0 - r,

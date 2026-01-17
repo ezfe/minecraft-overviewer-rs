@@ -1,5 +1,6 @@
 use fastnbt::{ByteArray, LongArray};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use crate::coords::chunk_local_block_coord::ChunkLocalBlockCoord;
 
@@ -80,7 +81,7 @@ impl BlockStates {
 #[serde(rename_all = "PascalCase")]
 pub struct PaletteEntry {
     pub name: String,
-    // pub properties: Option<HashMap<String, String>>,
+    pub properties: Option<HashMap<String, String>>,
 }
 
 impl Section {

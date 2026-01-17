@@ -1,10 +1,23 @@
+use crate::coords::block_face::{BlockFace, VerticalBlockFace};
+use crate::render::missing_block_tex::create_missing_block_texture;
 use crate::utils::darken_image;
 use image::{RgbaImage, imageops};
+
+pub fn transform(texture: &RgbaImage, face: &BlockFace) -> RgbaImage {
+    match face {
+        BlockFace::Top => transform_top(texture),
+        BlockFace::Bottom => create_missing_block_texture(), // TODO
+        BlockFace::North => transform_side(texture, VerticalBlockFace::North),
+        BlockFace::South => transform_side(texture, VerticalBlockFace::South),
+        BlockFace::East => transform_side(texture, VerticalBlockFace::East),
+        BlockFace::West => transform_side(texture, VerticalBlockFace::West),
+    }
+}
 
 /// Transform a texture for the top face of an isometric block
 /// Rotates 45 degrees and scales Y by 0.5
 /// Output: 24x12 pixels
-pub fn transform_top(texture: &RgbaImage) -> RgbaImage {
+fn transform_top(texture: &RgbaImage) -> RgbaImage {
     // Resize to 17x17 for better sampling
     let resized = imageops::resize(texture, 17, 17, imageops::FilterType::Triangle);
 
@@ -50,7 +63,7 @@ pub fn transform_top(texture: &RgbaImage) -> RgbaImage {
     output
 }
 
-pub fn transform_side(texture: &RgbaImage, side: BlockSpriteSide) -> RgbaImage {
+fn transform_side(texture: &RgbaImage, side: VerticalBlockFace) -> RgbaImage {
     const RESIZED_DIM: u32 = 12;
     const SHEARED_HEIGHT: u32 = 18;
 
@@ -88,18 +101,18 @@ pub fn transform_side(texture: &RgbaImage, side: BlockSpriteSide) -> RgbaImage {
 
     // Darken the sides (left 0.9, right 0.8)
     let side_darken_factor = match side {
-        BlockSpriteSide::SideLeft => 0.9,
-        BlockSpriteSide::SideRight => 0.8,
+        VerticalBlockFace::South => 0.9,
+        VerticalBlockFace::East => 0.8,
+        _ => 1.0, // TODO
     };
     let darkened_img = darken_image(&output, side_darken_factor);
 
     match side {
-        BlockSpriteSide::SideLeft => darkened_img,
-        BlockSpriteSide::SideRight => imageops::flip_horizontal(&darkened_img),
+        VerticalBlockFace::North => {
+            imageops::flip_vertical(&imageops::flip_horizontal(&darkened_img))
+        }
+        VerticalBlockFace::South => darkened_img,
+        VerticalBlockFace::East => imageops::flip_horizontal(&darkened_img),
+        VerticalBlockFace::West => imageops::flip_vertical(&darkened_img),
     }
-}
-
-pub enum BlockSpriteSide {
-    SideLeft,
-    SideRight,
 }
